@@ -22,8 +22,8 @@ export default function Navbar() {
       <div className="container mx-auto px-4 max-w-7xl">
         <div className="flex justify-between h-[72px]">
           <div className="flex items-center">
-            <NavLink to="/" className="brand-link flex items-center space-x-2 text-xl font-semibold text-white">
-              <span className="brand-mark"><Scale className="h-4 w-4" /></span>
+            <NavLink to="/" className="flex items-center space-x-3 text-2xl font-bold text-slate-900 transition-opacity hover:opacity-80">
+              <img src="/logo.png" alt="LexiGuard Logo" className="h-12 w-12 object-contain" />
               <span>LexiGuard</span>
             </NavLink>
           </div>
@@ -44,7 +44,7 @@ export default function Navbar() {
               </NavLink>
             ))}
             <NavLink to="/query" className="nav-cta">
-              <Sparkles className="h-4 w-4" /> Ask LexiGuard
+              <Sparkles className="h-4 w-4 text-yellow-400" /> Ask LexiGuard
             </NavLink>
           </div>
 
@@ -52,7 +52,7 @@ export default function Navbar() {
           <div className="flex items-center md:hidden">
             <button
               onClick={toggleMenu}
-              className="text-slate-300 hover:text-white focus:outline-none p-2"
+              className="text-slate-800 hover:text-slate-900 focus:outline-none p-2"
             >
               {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>

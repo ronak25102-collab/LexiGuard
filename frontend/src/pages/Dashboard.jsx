@@ -62,10 +62,10 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard icon={<FileText className="w-6 h-6 text-blue-400" />} label="Unique Contracts" value={uniqueContracts.length} />
-        <StatsCard icon={<Users className="w-6 h-6 text-green-400" />} label="Total Parties" value={stats.total_parties || 0} />
-        <StatsCard icon={<FileSignature className="w-6 h-6 text-orange-400" />} label="Total Clauses" value={stats.total_clauses || 0} />
-        <StatsCard icon={<Share2 className="w-6 h-6 text-purple-400" />} label="Total Relationships" value={stats.total_relationships || 0} />
+        <StatsCard icon={<FileText className="w-6 h-6 text-slate-800" />} label="Unique Contracts" value={uniqueContracts.length} />
+        <StatsCard icon={<Users className="w-6 h-6 text-slate-800" />} label="Total Parties" value={stats.total_parties || 0} />
+        <StatsCard icon={<FileSignature className="w-6 h-6 text-slate-800" />} label="Total Clauses" value={stats.total_clauses || 0} />
+        <StatsCard icon={<Share2 className="w-6 h-6 text-slate-800" />} label="Total Relationships" value={stats.total_relationships || 0} />
       </div>
 
       {/* Contracts Grid */}
@@ -85,25 +85,25 @@ export default function Dashboard() {
               <div key={contract.contract_id} className="contract-card block h-full">
                 <div className="h-full flex flex-col">
                   <span className="contract-eyebrow">{contract.contract_type || 'Contract'}</span>
-                  <h3 className="text-lg font-semibold text-white mb-3 truncate" title={contract.title}>{contract.title}</h3>
-                  <div className="text-sm text-slate-400 mb-5 space-y-2 flex-grow">
-                    <p><span>Governing law</span> {contract.governing_law || 'Unknown'}</p>
+                  <h3 className="text-lg font-bold text-slate-900 mb-3 truncate drop-shadow-sm" title={contract.title}>{contract.title}</h3>
+                  <div className="text-sm text-slate-600 mb-5 space-y-2 flex-grow font-medium">
+                    <p><span className="text-slate-500">Governing law</span> {contract.governing_law || 'Unknown'}</p>
                     {contract.parties && (
-                       <p className="truncate"><span>Parties</span> {contract.parties.join(', ')}</p>
+                       <p className="truncate"><span className="text-slate-500">Parties</span> {contract.parties.join(', ')}</p>
                     )}
                   </div>
-                  <div className="mt-auto flex justify-between items-center text-xs text-slate-500 contract-footer">
+                  <div className="mt-auto flex justify-between items-center text-xs text-slate-600 font-semibold contract-footer border-t border-black/5 pt-3">
                     <span>{contract.clause_count || 0} Clauses</span>
                     <div className="flex items-center gap-4">
                       <Link
                         to={`/query?contractTitle=${encodeURIComponent(contract.title)}`}
-                        className="contract-link !text-purple-400 hover:!text-purple-300 transition-colors"
+                        className="contract-link !text-slate-900 font-semibold hover:!text-slate-700 transition-colors"
                       >
                         <MessageSquare className="w-3.5 h-3.5" /> Chat
                       </Link>
                       <Link
                         to={`/contract/${contract.contract_id}`}
-                        className="contract-link"
+                        className="contract-link !text-slate-700 hover:!text-slate-900"
                       >
                         Open contract <ArrowRight className="w-3.5 h-3.5" />
                       </Link>

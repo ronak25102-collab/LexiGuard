@@ -1,209 +1,142 @@
-# ⚖️ LexiGuard — Multi-Contract Legal GraphRAG Agent
+﻿# LexiGuard: Enterprise Legal GraphRAG and Compliance Agent
 
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-green.svg)](https://fastapi.tiangolo.com)
-[![Neo4j](https://img.shields.io/badge/Neo4j-5.x-blue.svg)](https://neo4j.com)
-[![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-purple.svg)](https://langchain-ai.github.io/langgraph/)
-[![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+## Overview
+LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve multi-hop, cross-clause dependencies across commercial contracts. By parsing unstructured legal PDFs into a deterministic Neo4j knowledge graph, LexiGuard enables high-fidelity, self-reflecting Corrective RAG (CRAG) capabilities to eliminate ungrounded legal hallucinations.
 
-An automated legal auditing system that ingests commercial contracts, structures them into a queryable **Knowledge Graph**, and uses a **self-correcting AI agent** (Corrective RAG) to answer complex multi-clause compliance questions — without hallucinating.
+## Key Capabilities
+* **Knowledge Graph Ingestion:** Automated pipeline converting unstructured legal PDFs into structured Markdown, followed by LLM-driven entity extraction directly mapped to Neo4j nodes (Contract, Party, Clause) and relationships (MODIFIES, SUPERSEDES, EXCLUDES, INCORPORATED_IN).
+* **Corrective RAG (CRAG):** Implemented via LangGraph, this architecture evaluates the relevance of retrieved clauses, reformulates Cypher queries upon failure, and synthesizes answers exclusively from grounded legal text.
+* **Interactive Web Interface:** A modern, responsive React application featuring light glassmorphism design principles, real-time graph visualization (ForceGraph2D), an interactive chat interface, and a dynamic upload dashboard.
+* **Evaluation Suite:** Built-in Ragas integration to continuously measure pipeline accuracy across Faithfulness, Context Precision, and Answer Relevancy.
 
----
+## System Architecture
 
-## 🎯 Why LexiGuard?
+`	ext
+[ Legal PDF ] -> [ pymupdf4llm ] -> [ Markdown Text ]
+                                          |
+                                [ LLM Entity Extraction ]
+                                          |
+                                 [ Neo4j Graph Database ]
+                                          |
+[ User Query ] -> [ Cypher Query Generation ] -> [ Clause Retrieval ]
+                                                      |
+                                         [ Relevance Grading (CRAG) ]
+                                            /                  \
+                                      [ PASS ]               [ FAIL ]
+                                         |                     |
+                               [ Synthesize Answer ]  [ Rewrite Query ]
+`
 
-Traditional RAG systems use flat vector search: they find paragraphs with similar words. This **fails catastrophically** on legal contracts where Clause A on page 2 is modified or superseded by Clause G on page 45.
+## Knowledge Graph Schema
 
-LexiGuard solves this with **GraphRAG** — mapping explicit relationships (`MODIFIES`, `EXCLUDES`, `SUPERSEDES`) between legal entities and clauses, enabling multi-hop reasoning over connected data.
+The Neo4j ontology explicitly models commercial contracts:
 
-| Feature | Traditional RAG | LexiGuard (GraphRAG) |
-|---------|:--------------:|:-------------------:|
-| Cross-clause awareness | ❌ | ✅ |
-| Relationship traversal | ❌ | ✅ |
-| Self-verification loop | ❌ | ✅ |
-| Grounded citations | ❌ | ✅ |
-| Published metrics | ❌ | ✅ |
+* **Nodes:** (Contract), (Party), (Clause), (Location)
+* **Relationships:**
+  * (Contract)-[:HAS_PARTY]->(Party)
+  * (Contract)-[:CONTAINS_CLAUSE]->(Clause)
+  * (Clause)-[:INCORPORATED_IN]->(Location)
+  * (Clause)-[:MODIFIES]->(Clause)
+  * (Clause)-[:SUPERSEDES]->(Clause)
+  * (Clause)-[:EXCLUDES]->(Clause)
 
----
+## Prerequisites
 
-## 🏗️ Architecture
+* Python 3.11+
+* Node.js 18+
+* Neo4j Aura Account (Free Tier)
+* LLM API Keys (OpenAI, Google Gemini, or NVIDIA NIM)
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    React Frontend (Vite)                      │
-│  Dashboard │ Upload │ Contract Explorer │ Chat Interface      │
-└─────────────────────────┬────────────────────────────────────┘
-                          │ HTTP/REST
-┌─────────────────────────┴────────────────────────────────────┐
-│                    FastAPI Backend                             │
-│  /upload │ /process │ /contracts │ /graph/stats │ /health   │
-└────────┬────────────────┬────────────────────────────────────┘
-         │ Async Task     │
-┌────────▼────────┐ ┌─────┴────────────────────────────────────┐
-│ Pipeline:       │ │    LangGraph CRAG Agent (Self-Correcting) │
-│ 1. Parse PDF    │ │                                          │
-│ 2. Extract LLM  │ │  ┌──────────┐    ┌───────────┐           │
-│ 3. Build Graph  │ │  │ Retrieve │───▶│  Grade    │───▶ Answer│
-│                 │ │  │ (Cypher) │    │ Relevance │           │
-└────────┬────────┘ │  └──────────┘    └─────┬─────┘           │
-         │          │       ▲                │                 │
-         │          │       │          ┌─────▼─────┐           │
-         │          │       └──────────│  Rewrite  │           │
-         │          │                  │  Query    │           │
-         │          │                  └───────────┘           │
-         │          └────────────────────────┬─────────────────┘
-         │                                   │ Cypher
-┌────────▼───────────────────────────────────▼─────────────────┐
-│                   Neo4j Knowledge Graph                       │
-│                                                               │
-│  (Contract)──HAS_PARTY──▶(Party)                             │
-│      │                       │                                │
-│  CONTAINS_CLAUSE         INCORPORATED_IN                      │
-│      │                       │                                │
-│      ▼                       ▼                                │
-│  (Clause)──MODIFIES──▶(Clause)    (Location)                 │
-│           ──SUPERSEDES──▶                                     │
-│           ──EXCLUDES──▶                                       │
-└──────────────────────────────────────────────────────────────┘
-```
+## Quick Start Guide
 
----
+### 1. Repository Setup
 
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Node.js 18+
-- Neo4j Aura account ([free tier](https://neo4j.com/cloud/aura-free/))
-- OpenAI API key, Google Gemini API key, or NVIDIA NIM API key
-
-### 1. Clone & Install
-
-```bash
+`ash
 git clone https://github.com/yourusername/LexiGuard.git
 cd LexiGuard
 
-# Backend
+# Backend Setup
 pip install -e ".[dev]"
 
-# Frontend
-cd frontend && npm install && cd ..
+# Frontend Setup
+cd frontend
+npm install
+cd ..
 
-# Configure environment
+# Environment Configuration
 cp .env.example .env
-# Edit .env with your API keys
-```
+# Edit .env with your Neo4j credentials and LLM API keys
+`
 
-### 2. Add Contracts to the Knowledge Graph
+### 2. Running the Application
 
-LexiGuard supports dynamic PDF ingestion directly from the web interface.
+LexiGuard operates with a decoupled frontend and backend. Both must be running simultaneously.
 
-1. Ensure your `.env` contains valid LLM API keys (OpenAI, Gemini, or NVIDIA)
-2. Start the application (see step 3 below)
-3. Navigate to the **Upload** tab in the web interface
-4. Upload any commercial contract PDF. LexiGuard will automatically parse the PDF, extract entities via LLM, and ingest them into the Neo4j Graph.
+`ash
+# Terminal 1: Initialize FastAPI Backend
+python -m lexiguard.api.main
 
-*(Optional)* To bulk-load the CUAD dataset via scripts:
-```bash
+# Terminal 2: Initialize React Frontend
+cd frontend
+npm run dev
+`
+
+Navigate to http://localhost:3000 to access the LexiGuard dashboard.
+
+### 3. Data Ingestion
+
+Contracts can be ingested directly through the web application's **Upload** interface. Alternatively, the CUAD dataset can be bulk-loaded via the provided CLI scripts:
+
+`ash
 python scripts/01_download_data.py
 python scripts/02_parse_contracts.py
 python scripts/03_extract_entities.py
 python scripts/04_build_graph.py
-```
+`
 
-### 3. Run the Application
+## Evaluation Framework
 
-```bash
-# Terminal 1: Start the backend
-python -m lexiguard.api.main
+LexiGuard utilizes the Ragas framework to validate pipeline integrity. Execute the evaluation suite via:
 
-# Terminal 2: Start the frontend
-cd frontend && npm run dev
-```
-
-Open **http://localhost:3000** to access the LexiGuard dashboard.
-
----
-
-## 📊 Evaluation
-
-Run the Ragas evaluation suite to measure pipeline accuracy:
-
-```bash
+`ash
 python scripts/05_run_evaluation.py
-```
+`
 
-| Metric | Score | Description |
-|--------|:-----:|-------------|
-| **Faithfulness** | Target > 0.85 | Does the answer stay grounded in retrieved clauses? |
-| **Context Precision** | Target > 0.80 | Did the retriever find the right clauses? |
-| **Answer Relevancy** | Target > 0.80 | Is the answer pertinent to the question? |
+* **Faithfulness:** Measures if the generated answer stays grounded in the retrieved legal clauses. (Target: > 0.85)
+* **Context Precision:** Measures the signal-to-noise ratio of the retrieved clauses. (Target: > 0.80)
+* **Answer Relevancy:** Measures the semantic pertinence of the generated answer to the initial query. (Target: > 0.80)
 
----
+## Project Structure
 
-## 🗂️ Project Structure
-
-```
+`	ext
 LexiGuard/
 ├── src/lexiguard/
-│   ├── config.py              # Settings (Pydantic)
-│   ├── ingestion/             # PDF parsing & entity extraction
-│   │   ├── downloader.py      # CUAD dataset download
-│   │   ├── parser.py          # PDF → Markdown (pymupdf4llm)
-│   │   └── extractor.py       # LLM structured extraction
-│   ├── graph/                 # Neo4j knowledge graph
-│   │   ├── schema.py          # Pydantic models (41 CUAD categories)
-│   │   ├── neo4j_client.py    # Database driver wrapper
-│   │   └── builder.py         # Graph construction (MERGE)
-│   ├── agent/                 # LangGraph CRAG agent
-│   │   ├── state.py           # TypedDict state
-│   │   ├── prompts.py         # Legal prompt templates
-│   │   ├── nodes.py           # Retrieve, Grade, Generate, Rewrite
-│   │   └── graph.py           # Workflow compilation
-│   ├── evaluation/            # Ragas evaluation
-│   │   ├── test_set.py        # CUAD QA test builder
-│   │   └── evaluate.py        # Metrics computation
-│   └── api/                   # FastAPI backend
-│       ├── models.py          # Request/Response schemas
-│       └── main.py            # REST endpoints
-├── frontend/                  # React + Vite + Tailwind
+│   ├── config.py              # Configuration schemas
+│   ├── ingestion/             # PDF parsing & extraction
+│   ├── graph/                 # Neo4j schema & cypher logic
+│   ├── agent/                 # LangGraph CRAG workflow
+│   ├── evaluation/            # Ragas metric computation
+│   └── api/                   # FastAPI routes & controllers
+├── frontend/                  # React + Vite application
 │   └── src/
-│       ├── pages/             # Dashboard, Upload, Chat, Explorer, Eval
-│       ├── components/        # Navbar, StatsCard, Spinner
-│       └── api/client.js      # Axios API client
-├── scripts/                   # Pipeline execution scripts
-├── tests/                     # Pytest suite
-└── docs/                      # Architecture documentation
-```
+│       ├── pages/             # Route components
+│       ├── components/        # Reusable UI elements
+│       └── api/               # Axios REST clients
+├── scripts/                   # CLI execution scripts
+├── tests/                     # Pytest test suite
+└── docs/                      # Architectural documentation
+`
 
----
+## Technology Stack
 
-## 🛠️ Tech Stack
+* **Data Parsing:** pymupdf4llm
+* **LLM Extraction:** OpenAI / Gemini / NVIDIA, Pydantic, Instructor
+* **Graph Database:** Neo4j (Cypher)
+* **Agentic Orchestration:** LangGraph (Corrective RAG)
+* **Backend Application:** FastAPI
+* **Frontend Application:** React, Vite, Tailwind CSS, Recharts, ForceGraph2D
+* **Metrics & Evaluation:** Ragas
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Data** | CUAD Dataset | 510 real commercial contracts |
-| **Parsing** | pymupdf4llm | PDF → structured Markdown |
-| **Extraction** | OpenAI + Pydantic + Instructor | Structured entity extraction |
-| **Graph DB** | Neo4j (Aura) | Knowledge graph storage |
-| **Agent** | LangGraph | Corrective RAG workflow |
-| **Backend** | FastAPI | REST API |
-| **Frontend** | React + Vite + Tailwind | Web interface |
-| **Evaluation** | Ragas | Faithfulness & precision metrics |
+## License
 
----
-
-## 💼 Resume Bullet Points
-
-- **LexiGuard – Multi-Contract Legal GraphRAG & Compliance Agent** *(Python, Neo4j, LangGraph, FastAPI, React)*
-- *Architected an enterprise Legal GraphRAG platform utilizing Neo4j to resolve multi-hop cross-clause dependencies across 500+ commercial contracts from the CUAD dataset.*
-- *Engineered an automated extraction pipeline converting unstructured legal PDFs into a queryable knowledge graph (Contract, Party, and Clause nodes) via explicit Cypher relationship mappings (MODIFIES, SUPERSEDES, EXCLUDES).*
-- *Implemented a Corrective RAG (CRAG) workflow via LangGraph with self-reflection guardrails, eliminating ungrounded legal hallucinations through dynamic Cypher query reformulation.*
-- *Built a full-stack web application with React dashboard, interactive graph visualization, and chat interface backed by FastAPI, achieving >85% Faithfulness on Ragas evaluation.*
-
----
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See the LICENSE file for details.

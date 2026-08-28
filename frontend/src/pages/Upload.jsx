@@ -228,17 +228,13 @@ export default function Upload() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-8 relative overflow-hidden flex flex-col items-center">
-      {/* Ambient Background Glows for Glassmorphism */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none" />
-      
+    <div className="min-h-screen bg-transparent text-slate-900 p-8 relative overflow-hidden flex flex-col items-center">
       <div className="max-w-4xl w-full relative z-10 mx-auto">
         <div className="text-center mb-10">
-          <h1 className="text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent drop-shadow-sm">
+          <h1 className="text-5xl font-extrabold mb-4 text-slate-900 tracking-tight drop-shadow-sm">
             Upload Contract
           </h1>
-          <p className="text-slate-400 text-lg font-medium">
+          <p className="text-slate-800 text-lg font-semibold">
             Upload a legal contract PDF to analyze and add to the knowledge graph
           </p>
         </div>
@@ -247,8 +243,8 @@ export default function Upload() {
         <div
           className={`relative overflow-hidden rounded-3xl p-16 transition-all duration-500 ease-out group backdrop-blur-xl ${
             dragActive
-              ? 'bg-blue-500/10 border border-blue-400/50 shadow-[0_0_50px_-10px_rgba(59,130,246,0.3)] scale-[1.02]'
-              : 'bg-white/[0.03] border border-white/10 hover:bg-white/[0.06] hover:border-white/20 shadow-2xl'
+              ? 'bg-white/50 border border-slate-900/20 shadow-[0_0_50px_-10px_rgba(0,0,0,0.15)] scale-[1.02]'
+              : 'bg-white/30 border border-white/50 hover:bg-white/40 hover:border-white/60 shadow-2xl'
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -257,9 +253,9 @@ export default function Upload() {
         >
           {/* Animated Background Clouds */}
           <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-             <Cloud className="absolute text-blue-400/10 w-24 h-24 -top-4 -left-4 animate-[bounce_8s_infinite]" />
-             <Cloud className="absolute text-purple-400/10 w-32 h-32 bottom-4 right-10 animate-[bounce_6s_infinite_reverse]" />
-             <Cloud className="absolute text-indigo-400/10 w-16 h-16 top-10 right-20 animate-[bounce_7s_infinite]" />
+             <Cloud className="absolute text-slate-900/10 w-24 h-24 -top-4 -left-4 animate-[bounce_8s_infinite]" />
+             <Cloud className="absolute text-slate-900/10 w-32 h-32 bottom-4 right-10 animate-[bounce_6s_infinite_reverse]" />
+             <Cloud className="absolute text-slate-900/10 w-16 h-16 top-10 right-20 animate-[bounce_7s_infinite]" />
           </div>
 
           <input
@@ -278,21 +274,21 @@ export default function Upload() {
             <div className={`relative mb-8 transition-transform duration-500 ${dragActive ? 'scale-125' : 'group-hover:scale-110'}`}>
                {/* Pulsing ring behind the icon when dragging */}
                {dragActive && (
-                 <div className="absolute inset-0 bg-blue-500/30 rounded-full animate-ping scale-150" />
+                 <div className="absolute inset-0 bg-slate-900/10 rounded-full animate-ping scale-150" />
                )}
-               <CloudUpload className={`w-24 h-24 transition-colors duration-300 drop-shadow-xl ${
-                 dragActive ? 'text-blue-400 animate-bounce' : 'text-slate-300 group-hover:text-blue-400'
+               <CloudUpload className={`w-24 h-24 transition-colors duration-300 drop-shadow-md ${
+                 dragActive ? 'text-slate-900 animate-bounce' : 'text-slate-700 group-hover:text-slate-900'
                }`} />
             </div>
             
-            <p className="text-2xl font-bold mb-3 text-white text-center drop-shadow-md">
+            <p className="text-2xl font-bold mb-3 text-slate-900 text-center drop-shadow-sm">
               {file ? (
-                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-purple-300">
+                 <span className="text-slate-900 font-extrabold">
                     {file.name}
                  </span>
               ) : 'Drop your PDF here or click to browse'}
             </p>
-            <p className="text-slate-400 text-sm font-medium tracking-wide">
+            <p className="text-slate-700 text-sm font-semibold tracking-wide">
               {file ? formatFileSize(file.size) : 'Supports PDF files only (Max 10MB)'}
             </p>
           </label>
@@ -301,8 +297,8 @@ export default function Upload() {
         {/* Error Message */}
         {error && (
           <div className="mt-6 p-4 backdrop-blur-md bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3 animate-[pulse_2s_ease-in-out]">
-            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-            <span className="text-red-200 font-medium">{error}</span>
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <span className="text-red-700 font-medium">{error}</span>
           </div>
         )}
 
@@ -311,11 +307,11 @@ export default function Upload() {
           <button
             onClick={handleUpload}
             disabled={uploading}
-            className="mt-8 w-full relative overflow-hidden group bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-5 rounded-2xl font-bold text-lg shadow-[0_10px_30px_-10px_rgba(59,130,246,0.6)] hover:shadow-[0_10px_40px_-10px_rgba(79,70,229,0.8)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-1"
+            className="mt-8 w-full relative overflow-hidden group bg-slate-900 text-white px-6 py-5 rounded-2xl font-bold text-lg shadow-xl shadow-slate-900/20 hover:bg-slate-800 hover:shadow-2xl hover:shadow-slate-900/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-1"
           >
             {uploading ? (
               <>
-                <Loader className="w-6 h-6 animate-spin" />
+                <Loader className="w-6 h-6 animate-spin text-white" />
                 Processing...
               </>
             ) : (
@@ -329,20 +325,20 @@ export default function Upload() {
 
         {/* Upload Result (Glassmorphism) */}
         {uploadResult && (
-          <div className="mt-10 backdrop-blur-xl bg-white/[0.03] rounded-3xl p-8 border border-white/10 shadow-2xl">
+          <div className="mt-10 backdrop-blur-xl bg-white/30 rounded-3xl p-8 border border-white/50 shadow-2xl">
             <div className="flex items-start gap-6">
-              <div className="bg-slate-900/50 p-4 rounded-2xl border border-white/5 shadow-inner">
+              <div className="bg-white/50 p-4 rounded-2xl border border-white/50 shadow-inner">
                 {uploadResult.status === 'completed' ? (
-                  <CheckCircle className="w-10 h-10 text-green-400 flex-shrink-0 drop-shadow-md" />
+                  <CheckCircle className="w-10 h-10 text-emerald-600 flex-shrink-0 drop-shadow-sm" />
                 ) : uploadResult.status === 'not_found' ? (
-                  <AlertCircle className="w-10 h-10 text-red-400 flex-shrink-0 drop-shadow-md" />
+                  <AlertCircle className="w-10 h-10 text-red-600 flex-shrink-0 drop-shadow-sm" />
                 ) : (
-                  <Loader className="w-10 h-10 text-blue-400 animate-spin flex-shrink-0 drop-shadow-md" />
+                  <Loader className="w-10 h-10 text-slate-800 animate-spin flex-shrink-0 drop-shadow-sm" />
                 )}
               </div>
 
               <div className="flex-1">
-                <h3 className="text-2xl font-bold mb-4 text-white">
+                <h3 className="text-2xl font-bold mb-4 text-slate-900">
                   {uploadResult.status === 'completed'
                     ? 'Processing Complete!'
                     : uploadResult.status === 'not_found'
@@ -354,27 +350,27 @@ export default function Upload() {
 
                 {/* Progress Bar */}
                 {progress > 0 && (
-                  <div className="mb-6 bg-slate-900/50 p-5 rounded-2xl border border-white/5">
+                  <div className="mb-6 bg-white/40 p-5 rounded-2xl border border-white/50 shadow-inner">
                     <div className="flex justify-between text-sm mb-3">
-                      <span className="text-slate-300 font-medium">{currentStep}</span>
+                      <span className="text-slate-700 font-medium">{currentStep}</span>
                       <div className="flex items-center gap-3">
                         {elapsedTime > 0 && (
-                          <span className="text-slate-500 text-xs font-medium bg-slate-950 px-2 py-1 rounded-md">
+                          <span className="text-slate-600 text-xs font-medium bg-white/50 px-2 py-1 rounded-md">
                             {formatTime(elapsedTime)}
                             {uploading && progress < 100 && progress > 10 && getEstimatedTimeRemaining(progress, elapsedTime) > 0 && (
-                              <span className="text-slate-400"> • ~{formatTime(getEstimatedTimeRemaining(progress, elapsedTime))} left</span>
+                              <span className="text-slate-500"> • ~{formatTime(getEstimatedTimeRemaining(progress, elapsedTime))} left</span>
                             )}
                           </span>
                         )}
-                        <span className="text-blue-400 font-bold bg-blue-500/10 px-2 py-1 rounded-md">{progress}%</span>
+                        <span className="text-slate-900 font-bold bg-slate-900/10 px-2 py-1 rounded-md">{progress}%</span>
                       </div>
                     </div>
-                    <div className="w-full bg-slate-950 rounded-full h-3 overflow-hidden shadow-inner border border-white/5">
+                    <div className="w-full bg-white/50 rounded-full h-3 overflow-hidden shadow-inner border border-white/50">
                       <div
                         className={`h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden ${
                           progress >= 100
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-400'
-                            : 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                            ? 'bg-emerald-500'
+                            : 'bg-slate-800'
                         }`}
                         style={{ width: `${progress}%` }}
                       >
@@ -383,27 +379,27 @@ export default function Upload() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4 text-sm text-slate-300 mb-6">
-                  <div className="bg-white/[0.02] p-3 rounded-xl border border-white/5">
+                <div className="grid grid-cols-2 gap-4 text-sm text-slate-700 mb-6">
+                  <div className="bg-white/40 p-3 rounded-xl border border-white/50">
                     <span className="block text-slate-500 text-xs mb-1 uppercase tracking-wider">Contract ID</span>
-                    <code className="text-slate-200 font-mono">{uploadResult.contract_id}</code>
+                    <code className="text-slate-800 font-mono">{uploadResult.contract_id}</code>
                   </div>
                   {uploadResult.size_bytes && (
-                    <div className="bg-white/[0.02] p-3 rounded-xl border border-white/5">
+                    <div className="bg-white/40 p-3 rounded-xl border border-white/50">
                       <span className="block text-slate-500 text-xs mb-1 uppercase tracking-wider">File Size</span>
-                      <span className="text-slate-200 font-medium">{formatFileSize(uploadResult.size_bytes)}</span>
+                      <span className="text-slate-800 font-medium">{formatFileSize(uploadResult.size_bytes)}</span>
                     </div>
                   )}
-                  <div className="bg-white/[0.02] p-3 rounded-xl border border-white/5 col-span-2">
+                  <div className="bg-white/40 p-3 rounded-xl border border-white/50 col-span-2">
                     <span className="block text-slate-500 text-xs mb-1 uppercase tracking-wider">Status</span>
                     <span className={`font-bold tracking-wide ${
                         uploadResult.status === 'completed'
-                          ? 'text-green-400'
+                          ? 'text-emerald-600'
                           : uploadResult.status === 'processing' || uploadResult.status === 'extracting'
-                          ? 'text-blue-400'
+                          ? 'text-slate-700'
                           : uploadResult.status === 'error'
-                          ? 'text-red-400'
-                          : 'text-yellow-400'
+                          ? 'text-red-600'
+                          : 'text-amber-600'
                       }`}
                     >
                       {uploadResult.status?.toUpperCase() ?? 'UNKNOWN'}
@@ -415,13 +411,13 @@ export default function Upload() {
                   <div className="flex gap-4">
                     <a
                       href={`/contract/${uploadResult.graph_id || uploadResult.contract_id}`}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-blue-500/20"
+                      className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-slate-900/20"
                     >
                       View Knowledge Graph
                     </a>
                     <a
                       href="/query"
-                      className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-colors border border-white/10"
+                      className="px-6 py-3 bg-white/40 hover:bg-white/60 text-slate-900 font-semibold rounded-xl transition-colors border border-white/50"
                     >
                       Ask Questions
                     </a>
@@ -438,7 +434,7 @@ export default function Upload() {
                         setProgress(0);
                         setCurrentStep('');
                       }}
-                      className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-colors border border-white/10"
+                      className="px-6 py-3 bg-white/40 hover:bg-white/60 text-slate-900 font-semibold rounded-xl transition-colors border border-white/50"
                     >
                       Try Again
                     </button>
@@ -451,32 +447,32 @@ export default function Upload() {
 
         {/* Instructions (Glassmorphism) */}
         <div className="mt-12 grid md:grid-cols-3 gap-6">
-          <div className="backdrop-blur-md bg-white/[0.02] rounded-3xl p-8 border border-white/10 hover:bg-white/[0.04] transition-colors shadow-xl">
-            <div className="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 border border-blue-500/20 shadow-inner">
-              <FileText className="w-7 h-7 text-blue-400" />
+          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-8 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
+            <div className="w-14 h-14 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-6 border border-slate-900/10 shadow-inner">
+              <FileText className="w-7 h-7 text-slate-800" />
             </div>
-            <h3 className="font-bold text-lg mb-2 text-white drop-shadow-sm">1. Upload PDF</h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
+            <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">1. Upload PDF</h3>
+            <p className="text-sm text-slate-700 leading-relaxed">
               Upload any legal contract in PDF format (max 10MB)
             </p>
           </div>
 
-          <div className="backdrop-blur-md bg-white/[0.02] rounded-3xl p-8 border border-white/10 hover:bg-white/[0.04] transition-colors shadow-xl">
-            <div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 border border-indigo-500/20 shadow-inner">
-              <Loader className="w-7 h-7 text-indigo-400" />
+          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-8 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
+            <div className="w-14 h-14 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-6 border border-slate-900/10 shadow-inner">
+              <Loader className="w-7 h-7 text-slate-800" />
             </div>
-            <h3 className="font-bold text-lg mb-2 text-white drop-shadow-sm">2. AI Processing</h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
+            <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">2. AI Processing</h3>
+            <p className="text-sm text-slate-700 leading-relaxed">
               AI extracts parties, clauses, and relationships (2-5 min)
             </p>
           </div>
 
-          <div className="backdrop-blur-md bg-white/[0.02] rounded-3xl p-8 border border-white/10 hover:bg-white/[0.04] transition-colors shadow-xl">
+          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-8 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
             <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 border border-emerald-500/20 shadow-inner">
-              <CheckCircle className="w-7 h-7 text-emerald-400" />
+              <CheckCircle className="w-7 h-7 text-emerald-600" />
             </div>
-            <h3 className="font-bold text-lg mb-2 text-white drop-shadow-sm">3. Query & Analyze</h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
+            <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">3. Query & Analyze</h3>
+            <p className="text-sm text-slate-700 leading-relaxed">
               Ask questions about your contract instantly
             </p>
           </div>

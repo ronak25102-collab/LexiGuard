@@ -95,7 +95,7 @@ export default function ContractDetail() {
   };
 
   if (loading) return <div className="h-96 flex items-center justify-center"><LoadingSpinner text="Loading Contract..." /></div>;
-  if (error) return <div className="text-red-500 text-center p-8 bg-slate-800 rounded-xl">{error}</div>;
+  if (error) return <div className="text-red-500 text-center p-8 bg-white/40 backdrop-blur-xl rounded-xl">{error}</div>;
   if (!contract) return null;
 
   const graphData = getGraphData();
@@ -103,21 +103,21 @@ export default function ContractDetail() {
   return (
     <div className="space-y-6 flex flex-col h-[calc(100vh-8rem)]">
       {/* Header */}
-      <div className="bg-slate-800 rounded-xl p-6 shadow-md border border-slate-700 flex-shrink-0">
-        <button onClick={() => navigate(-1)} className="flex items-center text-slate-400 hover:text-white mb-4 transition-colors">
+      <div className="bg-white/40 backdrop-blur-xl rounded-xl p-6 shadow-md border border-white/50 flex-shrink-0">
+        <button onClick={() => navigate(-1)} className="flex items-center text-slate-600 hover:text-slate-900 mb-4 transition-colors">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
         </button>
-        <h1 className="text-2xl font-bold text-white mb-2">{contract.title}</h1>
-        <div className="flex flex-wrap gap-4 text-sm text-slate-300">
-          <div className="flex items-center bg-slate-900 px-3 py-1 rounded-full border border-slate-700">
-            <FileText className="w-4 h-4 mr-2 text-blue-400" /> {contract.type || 'Standard Contract'}
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">{contract.title}</h1>
+        <div className="flex flex-wrap gap-4 text-sm text-slate-700">
+          <div className="flex items-center bg-white/60 px-3 py-1 rounded-full border border-white/50">
+            <FileText className="w-4 h-4 mr-2 text-slate-700" /> {contract.type || 'Standard Contract'}
           </div>
-          <div className="flex items-center bg-slate-900 px-3 py-1 rounded-full border border-slate-700">
-            <MapPin className="w-4 h-4 mr-2 text-purple-400" /> {contract.governingLaw || 'Unspecified Jurisdiction'}
+          <div className="flex items-center bg-white/60 px-3 py-1 rounded-full border border-white/50">
+            <MapPin className="w-4 h-4 mr-2 text-slate-700" /> {contract.governingLaw || 'Unspecified Jurisdiction'}
           </div>
           {contract.effectiveDate && (
-             <div className="flex items-center bg-slate-900 px-3 py-1 rounded-full border border-slate-700">
-               <ShieldAlert className="w-4 h-4 mr-2 text-green-400" /> Effective: {contract.effectiveDate}
+             <div className="flex items-center bg-white/60 px-3 py-1 rounded-full border border-white/50">
+               <ShieldAlert className="w-4 h-4 mr-2 text-slate-700" /> Effective: {contract.effectiveDate}
              </div>
           )}
         </div>
@@ -127,17 +127,17 @@ export default function ContractDetail() {
       <div className="flex flex-col lg:flex-row gap-6 flex-grow overflow-hidden">
         
         {/* Left Column: Graph */}
-        <div className="lg:w-1/2 bg-slate-800 rounded-xl shadow-md border border-slate-700 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-700 bg-slate-800 z-10 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-white">Knowledge Graph View</h2>
+        <div className="lg:w-1/2 bg-white/40 backdrop-blur-xl rounded-xl shadow-md border border-white/50 flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-white/50 bg-white/40 backdrop-blur-xl z-10 flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-slate-900">Knowledge Graph View</h2>
             <div className="flex space-x-3 text-xs">
-               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-blue-500 mr-1"></span>Contract</span>
-               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-green-500 mr-1"></span>Party</span>
+               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-700 mr-1"></span>Contract</span>
+               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-500 mr-1"></span>Party</span>
                <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-orange-500 mr-1"></span>Clause</span>
                <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-purple-500 mr-1"></span>Law</span>
             </div>
           </div>
-          <div className="flex-grow relative bg-slate-900/50">
+          <div className="flex-grow relative bg-white/60/50">
             <ForceGraph2D
               ref={graphRef}
               graphData={graphData}
@@ -157,25 +157,25 @@ export default function ContractDetail() {
         </div>
 
         {/* Right Column: Clauses */}
-        <div className="lg:w-1/2 bg-slate-800 rounded-xl shadow-md border border-slate-700 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-slate-700 flex-shrink-0">
-             <h2 className="text-lg font-semibold text-white">Clauses ({contract.clauses?.length || 0})</h2>
+        <div className="lg:w-1/2 bg-white/40 backdrop-blur-xl rounded-xl shadow-md border border-white/50 flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-white/50 flex-shrink-0">
+             <h2 className="text-lg font-semibold text-slate-900">Clauses ({contract.clauses?.length || 0})</h2>
           </div>
           <div className="flex-grow overflow-y-auto p-4 space-y-4 custom-scrollbar">
             {(!contract.clauses || contract.clauses.length === 0) ? (
-              <p className="text-slate-400 text-center italic mt-10">No clauses found in this contract.</p>
+              <p className="text-slate-600 text-center italic mt-10">No clauses found in this contract.</p>
             ) : (
               contract.clauses.map((clause, idx) => (
-                <div key={idx} className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden transition-all duration-200">
+                <div key={idx} className="bg-white/60 border border-white/50 rounded-lg overflow-hidden transition-all duration-200">
                   <button 
                     onClick={() => toggleClause(idx)}
-                    className="w-full text-left px-4 py-3 flex justify-between items-center hover:bg-slate-800/80 focus:outline-none"
+                    className="w-full text-left px-4 py-3 flex justify-between items-center hover:bg-white/50 focus:outline-none"
                   >
-                    <span className="font-medium text-slate-200">{clause.title || `Section ${idx + 1}`}</span>
+                    <span className="font-medium text-slate-800">{clause.title || `Section ${idx + 1}`}</span>
                     {expandedClauses[idx] ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
                   </button>
                   {expandedClauses[idx] && (
-                    <div className="px-4 pb-4 pt-2 text-sm text-slate-400 border-t border-slate-800 whitespace-pre-wrap leading-relaxed">
+                    <div className="px-4 pb-4 pt-2 text-sm text-slate-600 border-t border-slate-800 whitespace-pre-wrap leading-relaxed">
                       {clause.text}
                     </div>
                   )}

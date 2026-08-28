@@ -7,8 +7,8 @@ export default function StatsCard({ icon, label, value }) {
         {icon}
       </div>
       <div>
-        <p className="text-sm font-medium text-slate-400">{label}</p>
-        <p className="text-2xl font-bold text-white">{value}</p>
+        <p className="text-sm font-medium text-slate-600">{label}</p>
+        <p className="text-2xl font-bold text-slate-900 drop-shadow-sm">{value}</p>
       </div>
     </div>
   );

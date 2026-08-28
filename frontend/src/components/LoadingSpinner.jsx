@@ -7,7 +7,7 @@ export default function LoadingSpinner({ text = 'Loading...' }) {
         <div className="absolute inset-0 border-4 border-slate-700 rounded-full"></div>
         <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
       </div>
-      {text && <p className="text-slate-400 font-medium">{text}</p>}
+      {text && <p className="text-slate-700 font-medium">{text}</p>}
     </div>
   );
 }

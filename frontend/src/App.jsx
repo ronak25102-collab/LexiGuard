@@ -1,7 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { StructureFlowCollection } from '@designcodeio/threeui';
-import '@designcodeio/threeui/style.css';
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
 import ContractDetail from './pages/ContractDetail';
@@ -10,19 +8,41 @@ import EvaluationDashboard from './pages/EvaluationDashboard';
 import Upload from './pages/Upload';
 
 function App() {
+  const vantaRef = useRef(null);
+
+  useEffect(() => {
+    let vantaEffect;
+    if (window.VANTA) {
+      vantaEffect = window.VANTA.FOG({
+        el: vantaRef.current,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.00,
+        minWidth: 200.00,
+        highlightColor: 0xbae6fd,
+        midtoneColor: 0x38bdf8,
+        lowlightColor: 0x0284c7,
+        baseColor: 0xf0f9ff,
+        blurFactor: 0.60,
+        speed: 1.00,
+        zoom: 1.00
+      });
+    }
+    return () => {
+      if (vantaEffect) vantaEffect.destroy();
+    };
+  }, []);
+
   return (
-    <div className="app-shell min-h-screen text-slate-50 flex flex-col">
-      <div className="shader-frame" aria-hidden="true">
-        <StructureFlowCollection
-          variant="fluid-field"
-          hue={0}
-          saturation={1.00}
-          brightness={1.00}
-        />
+    <div className="app-shell min-h-screen text-slate-50 flex flex-col relative">
+      {/* Vanta Global Background */}
+      <div className="fixed inset-0 z-[-1] pointer-events-none" aria-hidden="true">
+        <div ref={vantaRef} className="w-full h-full" />
       </div>
-      <div className="app-atmosphere" aria-hidden="true" />
+      
       <Navbar />
-      <main className="app-main flex-grow container mx-auto px-4 py-8 max-w-7xl">
+      <main className="app-main flex-grow container mx-auto px-4 py-8 max-w-7xl relative z-10">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/contract/:id" element={<ContractDetail />} />
