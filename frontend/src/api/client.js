@@ -61,4 +61,8 @@ export const checkContractStatus = (contractId) => {
   return apiClient.get(`/contracts/${encodeURIComponent(contractId)}/status`);
 };
 
+export const getEvaluationResults = () => {
+  return apiClient.get('/evaluation/results');
+};
+
 export default apiClient;

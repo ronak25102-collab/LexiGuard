@@ -1,0 +1,142 @@
+[
+  {
+    "question": "Q1",
+    "full_question": "Sample Question 1",
+    "faithfulness": 0.94,
+    "context_precision": 0.95,
+    "answer_relevancy": 0.84
+  },
+  {
+    "question": "Q2",
+    "full_question": "Sample Question 2",
+    "faithfulness": 0.78,
+    "context_precision": 0.88,
+    "answer_relevancy": 0.85
+  },
+  {
+    "question": "Q3",
+    "full_question": "Sample Question 3",
+    "faithfulness": 0.96,
+    "context_precision": 0.9,
+    "answer_relevancy": 0.91
+  },
+  {
+    "question": "Q4",
+    "full_question": "Sample Question 4",
+    "faithfulness": 0.8,
+    "context_precision": 0.85,
+    "answer_relevancy": 0.83
+  },
+  {
+    "question": "Q5",
+    "full_question": "Sample Question 5",
+    "faithfulness": 0.78,
+    "context_precision": 0.9,
+    "answer_relevancy": 0.89
+  },
+  {
+    "question": "Q6",
+    "full_question": "Sample Question 6",
+    "faithfulness": 0.84,
+    "context_precision": 0.86,
+    "answer_relevancy": 0.87
+  },
+  {
+    "question": "Q7",
+    "full_question": "Sample Question 7",
+    "faithfulness": 0.94,
+    "context_precision": 0.87,
+    "answer_relevancy": 0.86
+  },
+  {
+    "question": "Q8",
+    "full_question": "Sample Question 8",
+    "faithfulness": 0.81,
+    "context_precision": 0.82,
+    "answer_relevancy": 0.94
+  },
+  {
+    "question": "Q9",
+    "full_question": "Sample Question 9",
+    "faithfulness": 0.78,
+    "context_precision": 0.91,
+    "answer_relevancy": 0.99
+  },
+  {
+    "question": "Q10",
+    "full_question": "Sample Question 10",
+    "faithfulness": 0.87,
+    "context_precision": 0.83,
+    "answer_relevancy": 0.95
+  },
+  {
+    "question": "Q11",
+    "full_question": "Sample Question 11",
+    "faithfulness": 0.75,
+    "context_precision": 0.84,
+    "answer_relevancy": 0.97
+  },
+  {
+    "question": "Q12",
+    "full_question": "Sample Question 12",
+    "faithfulness": 0.96,
+    "context_precision": 0.91,
+    "answer_relevancy": 0.97
+  },
+  {
+    "question": "Q13",
+    "full_question": "Sample Question 13",
+    "faithfulness": 0.76,
+    "context_precision": 0.72,
+    "answer_relevancy": 0.81
+  },
+  {
+    "question": "Q14",
+    "full_question": "Sample Question 14",
+    "faithfulness": 0.8,
+    "context_precision": 0.91,
+    "answer_relevancy": 0.83
+  },
+  {
+    "question": "Q15",
+    "full_question": "Sample Question 15",
+    "faithfulness": 0.98,
+    "context_precision": 0.92,
+    "answer_relevancy": 0.98
+  },
+  {
+    "question": "Q16",
+    "full_question": "Sample Question 16",
+    "faithfulness": 0.9,
+    "context_precision": 0.94,
+    "answer_relevancy": 0.93
+  },
+  {
+    "question": "Q17",
+    "full_question": "Sample Question 17",
+    "faithfulness": 0.77,
+    "context_precision": 0.7,
+    "answer_relevancy": 0.95
+  },
+  {
+    "question": "Q18",
+    "full_question": "Sample Question 18",
+    "faithfulness": 0.81,
+    "context_precision": 0.75,
+    "answer_relevancy": 0.82
+  },
+  {
+    "question": "Q19",
+    "full_question": "Sample Question 19",
+    "faithfulness": 0.94,
+    "context_precision": 0.74,
+    "answer_relevancy": 0.87
+  },
+  {
+    "question": "Q20",
+    "full_question": "Sample Question 20",
+    "faithfulness": 0.96,
+    "context_precision": 0.86,
+    "answer_relevancy": 0.8
+  }
+]

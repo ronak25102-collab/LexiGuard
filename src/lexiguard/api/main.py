@@ -236,6 +236,24 @@ def process_query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/evaluation/results")
+def get_evaluation_results():
+    """Get the latest evaluation metrics."""
+    try:
+        results_file = Path("evaluation_results.json")
+        if not results_file.exists():
+            # Return null/empty if no evaluation has been run yet
+            return {"data": None, "message": "No evaluation data available. Run the evaluation script first."}
+            
+        import json
+        with open(results_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        return {"data": data}
+    except Exception as e:
+        logger.exception("Error reading evaluation results")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/contracts", response_model=list[ContractSummary])
 def list_contracts():
     """List all contracts in the knowledge graph."""

@@ -12,7 +12,7 @@ def load_cuad_test_set(num_questions: int = 20) -> list[dict[str, Any]]:
     """
     logger.info(f"Loading {num_questions} questions from CUAD QA dataset...")
     try:
-        dataset = load_dataset("theatticusproject/cuad-qa", split="test")
+        dataset = load_dataset("theatticusproject/cuad-qa", split="test", trust_remote_code=True)
 
         selected = []
         for item in dataset:
@@ -42,10 +42,10 @@ def build_evaluation_dataset(test_questions: list[dict[str, Any]], run_agent_fn:
     logger.info(f"Building evaluation dataset with {len(test_questions)} questions...")
 
     eval_data = {
-        "question": [],
-        "answer": [],
-        "contexts": [],
-        "ground_truth": []
+        "user_input": [],
+        "response": [],
+        "retrieved_contexts": [],
+        "reference": []
     }
 
     for i, item in enumerate(test_questions):
@@ -64,10 +64,10 @@ def build_evaluation_dataset(test_questions: list[dict[str, Any]], run_agent_fn:
                 else:
                     contexts.append(str(src))
 
-            eval_data["question"].append(item["question"])
-            eval_data["answer"].append(answer)
-            eval_data["contexts"].append(contexts)
-            eval_data["ground_truth"].append(item["ground_truth"])
+            eval_data["user_input"].append(item["question"])
+            eval_data["response"].append(answer)
+            eval_data["retrieved_contexts"].append(contexts)
+            eval_data["reference"].append(item["ground_truth"])
 
         except Exception as e:
             logger.error(f"Error processing question: {item['question']}. Error: {e}")

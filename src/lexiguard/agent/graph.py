@@ -18,7 +18,7 @@ _compiled_graph = None
 def _is_party_question(question: str) -> bool:
     """Return whether the question can be answered safely without an LLM."""
     normalized = question.lower()
-    return "party" in normalized and any(
+    return ("party" in normalized or "parties" in normalized) and any(
         phrase in normalized
         for phrase in ("who are", "who is", "involved", "contracting", "parties to")
     )
@@ -30,7 +30,7 @@ def _answer_party_question(contract_filter: str | None) -> dict:
 
     cypher_query = """
     MATCH (c:Contract)-[:HAS_PARTY]->(p:Party)
-    WHERE $contract_filter IS NULL OR c.id = $contract_filter
+    WHERE $contract_filter IS NULL OR c.id = $contract_filter OR c.title = $contract_filter
     RETURN c.id AS contract_id,
            c.title AS contract_title,
            collect(DISTINCT p.name) AS parties
