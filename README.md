@@ -11,7 +11,7 @@ LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve mul
 
 ## System Architecture
 
-`	ext
+```text
 [ Legal PDF ] -> [ pymupdf4llm ] -> [ Markdown Text ]
                                           |
                                 [ LLM Entity Extraction ]
@@ -25,20 +25,20 @@ LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve mul
                                       [ PASS ]               [ FAIL ]
                                          |                     |
                                [ Synthesize Answer ]  [ Rewrite Query ]
-`
+```
 
 ## Knowledge Graph Schema
 
 The Neo4j ontology explicitly models commercial contracts:
 
-* **Nodes:** (Contract), (Party), (Clause), (Location)
+* **Nodes:** `(Contract)`, `(Party)`, `(Clause)`, `(Location)`
 * **Relationships:**
-  * (Contract)-[:HAS_PARTY]->(Party)
-  * (Contract)-[:CONTAINS_CLAUSE]->(Clause)
-  * (Clause)-[:INCORPORATED_IN]->(Location)
-  * (Clause)-[:MODIFIES]->(Clause)
-  * (Clause)-[:SUPERSEDES]->(Clause)
-  * (Clause)-[:EXCLUDES]->(Clause)
+  * `(Contract)-[:HAS_PARTY]->(Party)`
+  * `(Contract)-[:CONTAINS_CLAUSE]->(Clause)`
+  * `(Clause)-[:INCORPORATED_IN]->(Location)`
+  * `(Clause)-[:MODIFIES]->(Clause)`
+  * `(Clause)-[:SUPERSEDES]->(Clause)`
+  * `(Clause)-[:EXCLUDES]->(Clause)`
 
 ## Prerequisites
 
@@ -51,7 +51,7 @@ The Neo4j ontology explicitly models commercial contracts:
 
 ### 1. Repository Setup
 
-`ash
+```bash
 git clone https://github.com/yourusername/LexiGuard.git
 cd LexiGuard
 
@@ -66,41 +66,41 @@ cd ..
 # Environment Configuration
 cp .env.example .env
 # Edit .env with your Neo4j credentials and LLM API keys
-`
+```
 
 ### 2. Running the Application
 
 LexiGuard operates with a decoupled frontend and backend. Both must be running simultaneously.
 
-`ash
+```bash
 # Terminal 1: Initialize FastAPI Backend
 python -m lexiguard.api.main
 
 # Terminal 2: Initialize React Frontend
 cd frontend
 npm run dev
-`
+```
 
-Navigate to http://localhost:3000 to access the LexiGuard dashboard.
+Navigate to `http://localhost:3000` to access the LexiGuard dashboard.
 
 ### 3. Data Ingestion
 
 Contracts can be ingested directly through the web application's **Upload** interface. Alternatively, the CUAD dataset can be bulk-loaded via the provided CLI scripts:
 
-`ash
+```bash
 python scripts/01_download_data.py
 python scripts/02_parse_contracts.py
 python scripts/03_extract_entities.py
 python scripts/04_build_graph.py
-`
+```
 
 ## Evaluation Framework
 
 LexiGuard utilizes the Ragas framework to validate pipeline integrity. Execute the evaluation suite via:
 
-`ash
+```bash
 python scripts/05_run_evaluation.py
-`
+```
 
 * **Faithfulness:** Measures if the generated answer stays grounded in the retrieved legal clauses. (Target: > 0.85)
 * **Context Precision:** Measures the signal-to-noise ratio of the retrieved clauses. (Target: > 0.80)
@@ -108,7 +108,7 @@ python scripts/05_run_evaluation.py
 
 ## Project Structure
 
-`	ext
+```text
 LexiGuard/
 ├── src/lexiguard/
 │   ├── config.py              # Configuration schemas
@@ -125,7 +125,7 @@ LexiGuard/
 ├── scripts/                   # CLI execution scripts
 ├── tests/                     # Pytest test suite
 └── docs/                      # Architectural documentation
-`
+```
 
 ## Technology Stack
 
@@ -139,4 +139,4 @@ LexiGuard/
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the `LICENSE` file for details.
