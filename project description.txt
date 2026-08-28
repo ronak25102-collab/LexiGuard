@@ -1,0 +1,92 @@
+Here is the complete, comprehensive blueprint for **LexiGuard: The Multi-Contract Legal GraphRAG Agent**. This covers the entire architecture, technology stack, dataset requirements, and the exact step-by-step roadmap you need to build and defend it in interviews.
+
+---
+
+## 1. Project Overview & Value Proposition
+
+**Domain:** LegalTech / Enterprise AI / Compliance Risk Management
+**Objective:** Build an automated legal auditing system that ingests complex commercial contracts, structures them into a queryable Knowledge Graph, and uses a self-correcting AI agent to answer complex multi-clause compliance questions without hallucinating.
+
+**Why it stands out to recruiters:**
+Traditional RAG (Retrieval-Augmented Generation) uses basic vector search, which simply finds paragraphs with similar words. This fails catastrophically on legal contracts where Clause A on page 2 is explicitly modified or canceled by Clause G on page 45. LexiGuard solves this by utilizing **GraphRAG**, which maps explicit relationships (e.g., `MODIFIES`, `EXCLUDES`, `SUPERSEDES`) between legal entities and clauses. This allows the AI to perform complex, multi-hop reasoning over connected data rather than guessing based on semantic similarity alone.
+
+---
+
+## 2. Core Architecture & Tech Stack
+
+The architecture is divided into three primary layers: **Ingestion**, **Storage**, and **Orchestration**.
+
+### A. Data Ingestion & Parsing
+
+* **Dataset:** **Contract Understanding Atticus Dataset (CUAD)**. A free, open-source dataset containing hundreds of real-world commercial contracts professionally annotated by lawyers.
+* **Parsing Engine:** **LlamaParse (by LlamaIndex)**. Legal PDFs have messy formatting, nested bullet points, and complex tables. LlamaParse converts raw unstructured PDFs into clean, structured Markdown, ensuring that logical boundaries (like sub-clauses and tables) remain intact before the AI reads them.
+* **Extraction Schema:** Using Python's **Pydantic**, you force the LLM to extract structured entities (e.g., classifying the document type, identifying the `Parties`, `Locations`, and `Clauses`).
+
+### B. Graph Storage Layer
+
+* **Database:** **Neo4j (Aura Free Tier)**. A high-performance graph database that stores data as nodes (circles) and relationships (lines).
+* **Graph Model:** Instead of flat text chunks, the data is stored across three main node types:
+1. **Contract Nodes:** Core agreement info (dates, terms).
+2. **Party Nodes:** The contracting entities.
+3. **Location/Clause Nodes:** Geographic and legal specifics.
+
+
+* **Query Language:** **Cypher**. Neo4j's visual query language used to traverse the graph and retrieve the exact legal dependencies requested by the user.
+
+### C. Agentic Orchestration Layer
+
+* **Agent Framework:** **LangGraph**. A framework that models agent workflows as state graphs, allowing for loops, conditional branching, and human-in-the-loop patterns.
+* **The Logic (Corrective RAG / CRAG):** The LangGraph agent does not just answer immediately. It executes a multi-step flowchart:
+1. Searches the Neo4j graph for relevant clauses.
+2. Enters a **Self-Reflection Node**: A secondary AI process evaluates if the retrieved graph data actually answers the user's prompt.
+3. If the data is insufficient, it loops back to rewrite the Cypher query and search again, mathematically preventing ungrounded hallucinations.
+
+
+* **Backend & API:** **FastAPI** exposes the LangGraph workflow as a `/process` endpoint.
+
+---
+
+## 3. Step-by-Step Implementation Roadmap
+
+If you were to build this from scratch over a few weeks, here is the exact chronological order of execution:
+
+### Phase 1: Data Extraction (The PDF Problem)
+
+1. Download a sample contract from the CUAD dataset.
+2. Create a LlamaParse instance using `parse_mode="parse_page_without_llm"` to process the sample PDF asynchronously.
+3. Verify that the output is clean Markdown with preserved legal structures.
+
+### Phase 2: Schema Design & Graph Construction
+
+1. Set up a free Neo4j Aura database instance.
+2. Write a script using LLM extraction tools (like LlamaExtract) to pull structured attributes tailored to the specific contract category (e.g., Affiliate Agreement vs. Non-Disclosure).
+3. Write Python code using the Neo4j driver to push this structured data into the database, generating the Contract, Party, and Location nodes.
+
+### Phase 3: The LangGraph Verification Loop
+
+1. Define the LangGraph workflow with short-term working memory to maintain the state of the agent's reasoning.
+2. Build the retrieval node that executes Cypher queries against Neo4j.
+3. Build the conditional routing node (the Guardrail) that rejects poor retrievals and loops back to try again.
+
+### Phase 4: Evaluation & Proof
+
+To prove this isn't just a toy project, you must measure its accuracy.
+
+1. Use the **Ragas** evaluation framework.
+2. Run your pipeline against a test set of 20 CUAD questions.
+3. Publish your metrics: **Context Precision** (Did you find the right clause?) and **Faithfulness** (Did the agent invent any fake legal terms?).
+
+---
+
+## 4. Resume Impact (Sample Bullet Points)
+
+When this is finished, here is exactly how you will present it on your resume to attract engineering recruiters:
+
+* **LexiGuard – Multi-Contract Legal GraphRAG & Compliance Agent** (Python, Neo4j, LangGraph, LlamaParse, FastAPI)
+* *Architected an enterprise Legal GraphRAG platform utilizing Neo4j to resolve multi-hop cross-clause dependencies across commercial contracts from the CUAD dataset.*
+* *Engineered an automated tabular extraction pipeline with LlamaParse, converting unstructured PDFs into a queryable knowledge graph (Contract, Party, and Clause nodes) via explicit Cypher relationship mappings.*
+* *Implemented a Corrective RAG (CRAG) workflow via LangGraph with self-reflection guardrails, eliminating ungrounded legal hallucinations through dynamic query reformulation.*
+
+
+
+This project definitively proves you understand the intersection of messy real-world data, advanced database relationships, and modern AI orchestration.

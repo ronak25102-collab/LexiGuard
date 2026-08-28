@@ -1,0 +1,42 @@
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Data (large files)
+data/raw/
+data/parsed/
+data/cuad_qa/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Evaluation outputs
+evaluation_results/
+
+# Node (frontend)
+frontend/node_modules/
+frontend/dist/
