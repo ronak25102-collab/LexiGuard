@@ -32,29 +32,29 @@ LexiGuard solves this with **GraphRAG** — mapping explicit relationships (`MOD
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    React Frontend (Vite)                      │
-│  Dashboard │ Contract Explorer │ Chat Interface │ Evaluation  │
+│  Dashboard │ Upload │ Contract Explorer │ Chat Interface      │
 └─────────────────────────┬────────────────────────────────────┘
                           │ HTTP/REST
 ┌─────────────────────────┴────────────────────────────────────┐
 │                    FastAPI Backend                             │
-│  /process │ /contracts │ /graph/stats │ /health               │
-└─────────────────────────┬────────────────────────────────────┘
-                          │
-┌─────────────────────────┴────────────────────────────────────┐
-│              LangGraph CRAG Agent (Self-Correcting)           │
-│                                                               │
-│  ┌──────────┐    ┌───────────┐    ┌────────────┐             │
-│  │ Retrieve │───▶│  Grade    │───▶│  Generate  │──▶ Answer   │
-│  │ (Cypher) │    │ Relevance │    │  (Grounded)│             │
-│  └──────────┘    └─────┬─────┘    └────────────┘             │
-│       ▲                │                                      │
-│       │          ┌─────▼─────┐                                │
-│       └──────────│  Rewrite  │ (if irrelevant, max 3 retries)│
-│                  │  Query    │                                │
-│                  └───────────┘                                │
-└─────────────────────────┬────────────────────────────────────┘
-                          │ Cypher
-┌─────────────────────────┴────────────────────────────────────┐
+│  /upload │ /process │ /contracts │ /graph/stats │ /health   │
+└────────┬────────────────┬────────────────────────────────────┘
+         │ Async Task     │
+┌────────▼────────┐ ┌─────┴────────────────────────────────────┐
+│ Pipeline:       │ │    LangGraph CRAG Agent (Self-Correcting) │
+│ 1. Parse PDF    │ │                                          │
+│ 2. Extract LLM  │ │  ┌──────────┐    ┌───────────┐           │
+│ 3. Build Graph  │ │  │ Retrieve │───▶│  Grade    │───▶ Answer│
+│                 │ │  │ (Cypher) │    │ Relevance │           │
+└────────┬────────┘ │  └──────────┘    └─────┬─────┘           │
+         │          │       ▲                │                 │
+         │          │       │          ┌─────▼─────┐           │
+         │          │       └──────────│  Rewrite  │           │
+         │          │                  │  Query    │           │
+         │          │                  └───────────┘           │
+         │          └────────────────────────┬─────────────────┘
+         │                                   │ Cypher
+┌────────▼───────────────────────────────────▼─────────────────┐
 │                   Neo4j Knowledge Graph                       │
 │                                                               │
 │  (Contract)──HAS_PARTY──▶(Party)                             │
@@ -95,19 +95,20 @@ cp .env.example .env
 # Edit .env with your API keys
 ```
 
-### 2. Build the Knowledge Graph
+### 2. Add Contracts to the Knowledge Graph
 
+LexiGuard supports dynamic PDF ingestion directly from the web interface.
+
+1. Ensure your `.env` contains valid LLM API keys (OpenAI, Gemini, or NVIDIA)
+2. Start the application (see step 3 below)
+3. Navigate to the **Upload** tab in the web interface
+4. Upload any commercial contract PDF. LexiGuard will automatically parse the PDF, extract entities via LLM, and ingest them into the Neo4j Graph.
+
+*(Optional)* To bulk-load the CUAD dataset via scripts:
 ```bash
-# Step 1: Download CUAD contracts
 python scripts/01_download_data.py
-
-# Step 2: Parse PDFs to Markdown
 python scripts/02_parse_contracts.py
-
-# Step 3: Extract legal entities using LLM
 python scripts/03_extract_entities.py
-
-# Step 4: Build Neo4j knowledge graph
 python scripts/04_build_graph.py
 ```
 
@@ -168,7 +169,7 @@ LexiGuard/
 │       └── main.py            # REST endpoints
 ├── frontend/                  # React + Vite + Tailwind
 │   └── src/
-│       ├── pages/             # Dashboard, Chat, Explorer, Eval
+│       ├── pages/             # Dashboard, Upload, Chat, Explorer, Eval
 │       ├── components/        # Navbar, StatsCard, Spinner
 │       └── api/client.js      # Axios API client
 ├── scripts/                   # Pipeline execution scripts
