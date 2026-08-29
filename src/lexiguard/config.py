@@ -18,6 +18,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PARSED_DATA_DIR = DATA_DIR / "parsed"
 CUAD_QA_DIR = DATA_DIR / "cuad_qa"
+CHROMA_DATA_DIR = DATA_DIR / "chroma_db"
 
 
 class LLMProvider(StrEnum):

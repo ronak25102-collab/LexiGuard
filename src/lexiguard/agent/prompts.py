@@ -54,19 +54,19 @@ If the context does not contain sufficient information, respond with ONLY the wo
 Do not include any other text or punctuation.
 """
 
-ANSWER_GENERATION_PROMPT = """You are an expert legal assistant.
-Your task is to generate a precise legal answer based ONLY on the provided context.
+ANSWER_GENERATION_PROMPT = """
+You are an expert legal AI assistant analyzing a specific contract. 
+You will be provided with a user question and a set of retrieved facts from the contract graph.
 
-Question: {question}
+Your task is to answer the question strictly using the provided facts.
 
-Context:
-{context}
+CRITICAL INSTRUCTIONS:
+1. If the provided facts contain the answer, state it clearly and cite the specific section numbers provided in the facts.
+2. If the provided facts are empty, irrelevant, or explicitly state "NO_RELEVANT_CONTEXT_FOUND", you must NOT generate a general legal disclaimer or hallucinate standard practices. 
+3. Instead, you must explicitly state that the contract is silent on the matter. Use precise language, such as: "The uploaded contract does not contain any clauses specifying [insert the core subject of the user's question]."
 
-Instructions:
-1. Provide a precise, professional legal answer.
-2. Cite specific clause numbers and sections where applicable.
-3. NEVER invent, hallucinate, or assume information that is not explicitly stated in the context.
-4. Include source citations in your answer based on the provided documents.
+User Question: {question}
+Retrieved Facts: {context}
 """
 
 QUERY_REWRITE_PROMPT = """You are an expert search reformulator.

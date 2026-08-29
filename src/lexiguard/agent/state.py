@@ -14,3 +14,5 @@ class GraphState(TypedDict):
     retry_count: int
     documents: list[str]
     contract_filter: str | None
+    intent: str
+    search_terms: list[str]

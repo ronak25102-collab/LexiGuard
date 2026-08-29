@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { CloudUpload, Cloud, FileText, CheckCircle, Loader, AlertCircle } from 'lucide-react';
 import { uploadContract, checkContractStatus } from '../api/client';
 
@@ -156,7 +156,7 @@ export default function Upload() {
             stopAllTimers();
             setError(
               `Lost connection to server after ${MAX_POLL_ERRORS} retries. ` +
-              'The contract may still be processing — refresh the Dashboard to check.'
+              'The contract may still be processing â€” refresh the Dashboard to check.'
             );
             setUploading(false);
           }
@@ -168,7 +168,7 @@ export default function Upload() {
         // Use the ref to check current uploading state (avoids stale closure)
         if (uploadingRef.current) {
           stopAllTimers();
-          setError('Processing timeout — please check the Dashboard for contract status.');
+          setError('Processing timeout â€” please check the Dashboard for contract status.');
           setUploading(false);
         }
       }, TIMEOUT_MS);
@@ -228,10 +228,10 @@ export default function Upload() {
   };
 
   return (
-    <div className="min-h-screen bg-transparent text-slate-900 p-8 relative overflow-hidden flex flex-col items-center">
+    <div className="h-[calc(100vh-8rem)] w-full bg-transparent text-slate-900 relative overflow-hidden flex flex-col items-center justify-center -my-4">
       <div className="max-w-4xl w-full relative z-10 mx-auto">
-        <div className="text-center mb-10">
-          <h1 className="text-5xl font-extrabold mb-4 text-slate-900 tracking-tight drop-shadow-sm">
+        <div className="text-center mb-6">
+          <h1 className="text-4xl font-extrabold mb-2 text-slate-900 tracking-tight drop-shadow-sm">
             Upload Contract
           </h1>
           <p className="text-slate-800 text-lg font-semibold">
@@ -241,7 +241,7 @@ export default function Upload() {
 
         {/* Upload Area (Glassmorphism) */}
         <div
-          className={`relative overflow-hidden rounded-3xl p-16 transition-all duration-500 ease-out group backdrop-blur-xl ${
+          className={`relative overflow-hidden rounded-3xl py-8 px-6 transition-all duration-500 ease-out group backdrop-blur-xl ${
             dragActive
               ? 'bg-white/50 border border-slate-900/20 shadow-[0_0_50px_-10px_rgba(0,0,0,0.15)] scale-[1.02]'
               : 'bg-white/30 border border-white/50 hover:bg-white/40 hover:border-white/60 shadow-2xl'
@@ -269,7 +269,7 @@ export default function Upload() {
 
           <label
             htmlFor="file-upload"
-            className="relative flex flex-col items-center justify-center cursor-pointer z-10"
+            className="relative flex flex-col items-center justify-center cursor-pointer z-10 scale-90"
           >
             <div className={`relative mb-8 transition-transform duration-500 ${dragActive ? 'scale-125' : 'group-hover:scale-110'}`}>
                {/* Pulsing ring behind the icon when dragging */}
@@ -307,7 +307,7 @@ export default function Upload() {
           <button
             onClick={handleUpload}
             disabled={uploading}
-            className="mt-8 w-full relative overflow-hidden group bg-slate-900 text-white px-6 py-5 rounded-2xl font-bold text-lg shadow-xl shadow-slate-900/20 hover:bg-slate-800 hover:shadow-2xl hover:shadow-slate-900/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-1"
+            className="mt-4 w-full relative overflow-hidden group bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-slate-900/20 hover:bg-slate-800 hover:shadow-2xl hover:shadow-slate-900/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-1"
           >
             {uploading ? (
               <>
@@ -325,11 +325,11 @@ export default function Upload() {
 
         {/* Upload Result (Glassmorphism) */}
         {uploadResult && (
-          <div className="mt-10 backdrop-blur-xl bg-white/30 rounded-3xl p-8 border border-white/50 shadow-2xl">
+          <div className="mt-10 backdrop-blur-xl bg-white/30 rounded-3xl p-5 border border-white/50 shadow-2xl">
             <div className="flex items-start gap-6">
               <div className="bg-white/50 p-4 rounded-2xl border border-white/50 shadow-inner">
                 {uploadResult.status === 'completed' ? (
-                  <CheckCircle className="w-10 h-10 text-emerald-600 flex-shrink-0 drop-shadow-sm" />
+                  <CheckCircle className="w-10 h-10 text-slate-800 flex-shrink-0 drop-shadow-sm" />
                 ) : uploadResult.status === 'not_found' ? (
                   <AlertCircle className="w-10 h-10 text-red-600 flex-shrink-0 drop-shadow-sm" />
                 ) : (
@@ -358,7 +358,7 @@ export default function Upload() {
                           <span className="text-slate-600 text-xs font-medium bg-white/50 px-2 py-1 rounded-md">
                             {formatTime(elapsedTime)}
                             {uploading && progress < 100 && progress > 10 && getEstimatedTimeRemaining(progress, elapsedTime) > 0 && (
-                              <span className="text-slate-500"> • ~{formatTime(getEstimatedTimeRemaining(progress, elapsedTime))} left</span>
+                              <span className="text-slate-500"> â€¢ ~{formatTime(getEstimatedTimeRemaining(progress, elapsedTime))} left</span>
                             )}
                           </span>
                         )}
@@ -369,7 +369,7 @@ export default function Upload() {
                       <div
                         className={`h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden ${
                           progress >= 100
-                            ? 'bg-emerald-500'
+                            ? 'bg-slate-800'
                             : 'bg-slate-800'
                         }`}
                         style={{ width: `${progress}%` }}
@@ -394,7 +394,7 @@ export default function Upload() {
                     <span className="block text-slate-500 text-xs mb-1 uppercase tracking-wider">Status</span>
                     <span className={`font-bold tracking-wide ${
                         uploadResult.status === 'completed'
-                          ? 'text-emerald-600'
+                          ? 'text-slate-800'
                           : uploadResult.status === 'processing' || uploadResult.status === 'extracting'
                           ? 'text-slate-700'
                           : uploadResult.status === 'error'
@@ -446,10 +446,10 @@ export default function Upload() {
         )}
 
         {/* Instructions (Glassmorphism) */}
-        <div className="mt-12 grid md:grid-cols-3 gap-6">
-          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-8 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
-            <div className="w-14 h-14 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-6 border border-slate-900/10 shadow-inner">
-              <FileText className="w-7 h-7 text-slate-800" />
+        <div className="mt-6 grid md:grid-cols-3 gap-6">
+          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-5 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
+            <div className="w-12 h-12 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-3 border border-slate-900/10 shadow-inner">
+              <FileText className="w-6 h-6 text-slate-800" />
             </div>
             <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">1. Upload PDF</h3>
             <p className="text-sm text-slate-700 leading-relaxed">
@@ -457,9 +457,9 @@ export default function Upload() {
             </p>
           </div>
 
-          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-8 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
-            <div className="w-14 h-14 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-6 border border-slate-900/10 shadow-inner">
-              <Loader className="w-7 h-7 text-slate-800" />
+          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-5 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
+            <div className="w-12 h-12 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-3 border border-slate-900/10 shadow-inner">
+              <Loader className="w-6 h-6 text-slate-800" />
             </div>
             <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">2. AI Processing</h3>
             <p className="text-sm text-slate-700 leading-relaxed">
@@ -467,9 +467,9 @@ export default function Upload() {
             </p>
           </div>
 
-          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-8 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
-            <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 border border-emerald-500/20 shadow-inner">
-              <CheckCircle className="w-7 h-7 text-emerald-600" />
+          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-5 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
+            <div className="w-12 h-12 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-3 border border-slate-900/10 shadow-inner">
+              <CheckCircle className="w-6 h-6 text-slate-800" />
             </div>
             <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">3. Query & Analyze</h3>
             <p className="text-sm text-slate-700 leading-relaxed">
@@ -481,3 +481,6 @@ export default function Upload() {
     </div>
   );
 }
+
+
+

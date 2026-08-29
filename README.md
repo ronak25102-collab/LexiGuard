@@ -1,11 +1,14 @@
 ﻿# LexiGuard: Enterprise Legal GraphRAG and Compliance Agent
 
 ## Overview
-LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve multi-hop, cross-clause dependencies across commercial contracts. By parsing unstructured legal PDFs into a deterministic Neo4j knowledge graph, LexiGuard enables high-fidelity, self-reflecting Corrective RAG (CRAG) capabilities to eliminate ungrounded legal hallucinations.
+LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve multi-hop, cross-clause dependencies across commercial contracts. By combining a **deterministic Neo4j Knowledge Graph** with the **semantic flexibility of a ChromaDB Vector Database**, LexiGuard enables a powerful Hybrid Retrieval system. This dual-path architecture powers a high-fidelity, self-reflecting Corrective RAG (CRAG) agent that eliminates ungrounded legal hallucinations without losing context to fuzzy synonyms.
 
 ## Key Capabilities
-* **Knowledge Graph Ingestion:** Automated pipeline converting unstructured legal PDFs into structured Markdown, followed by LLM-driven entity extraction directly mapped to Neo4j nodes (Contract, Party, Clause) and relationships (MODIFIES, SUPERSEDES, EXCLUDES, INCORPORATED_IN).
-* **Corrective RAG (CRAG):** Implemented via LangGraph, this architecture evaluates the relevance of retrieved clauses, reformulates Cypher queries upon failure, and synthesizes answers exclusively from grounded legal text.
+* **Dual-Path Ingestion:** Automated pipeline converting unstructured legal PDFs into structured Markdown. The pipeline then splits into two paths:
+  * **Path A (Structured):** LLM-driven entity extraction mapped directly to Neo4j nodes (Contract, Party, Clause) and relationships (MODIFIES, SUPERSEDES, EXCLUDES).
+  * **Path B (Semantic):** Text chunking and embedding storage in ChromaDB to capture underlying legal meaning and fuzzy phrasing.
+* **LLM-Driven Entity Resolution:** A specialized Deduplication Engine intercepts extracted entities and merges contract aliases (e.g., "Apex", "The Client", "Apex Enterprise Solutions") into unified primary Neo4j nodes to prevent graph fragmentation.
+* **Hybrid Corrective RAG (CRAG):** Implemented via LangGraph, this architecture queries both Neo4j (via generated Cypher) and ChromaDB simultaneously. It evaluates the combined relevance of retrieved clauses, reformulates queries upon failure, and synthesizes answers exclusively from grounded legal text.
 * **Interactive Web Interface:** A modern, responsive React application featuring light glassmorphism design principles, real-time graph visualization (ForceGraph2D), an interactive chat interface, and a dynamic upload dashboard.
 * **Evaluation Suite:** Built-in Ragas integration to continuously measure pipeline accuracy across Faithfulness, Context Precision, and Answer Relevancy.
 
@@ -14,17 +17,24 @@ LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve mul
 ```text
 [ Legal PDF ] -> [ pymupdf4llm ] -> [ Markdown Text ]
                                           |
-                                [ LLM Entity Extraction ]
+                   ------------------------------------------------
+                  |                                                |
+      [ LLM Entity Extraction ]                         [ Semantic Chunking ]
+                  |                                                |
+    [ LLM Entity Resolution ]                                      |
+         (Deduplication)                                           |
+                  |                                                |
+       [ Neo4j Graph Database ]                         [ ChromaDB Vector Store ]
+                  |                                                |
+                  --------------------------------------------------
                                           |
-                                 [ Neo4j Graph Database ]
+[ User Query ] ------------------> [ Hybrid Retrieval ]
                                           |
-[ User Query ] -> [ Cypher Query Generation ] -> [ Clause Retrieval ]
-                                                      |
-                                         [ Relevance Grading (CRAG) ]
-                                            /                  \
-                                      [ PASS ]               [ FAIL ]
-                                         |                     |
-                               [ Synthesize Answer ]  [ Rewrite Query ]
+                             [ Relevance Grading (CRAG) ]
+                                /                  \
+                          [ PASS ]               [ FAIL ]
+                             |                      |
+                   [ Synthesize Answer ]     [ Rewrite Query ]
 ```
 
 ## Knowledge Graph Schema
@@ -55,8 +65,8 @@ The Neo4j ontology explicitly models commercial contracts:
 git clone https://github.com/yourusername/LexiGuard.git
 cd LexiGuard
 
-# Backend Setup
-pip install -e ".[dev]"
+# Install backend dependencies (managed via uv)
+uv sync
 
 # Frontend Setup
 cd frontend
@@ -112,7 +122,7 @@ python scripts/05_run_evaluation.py
 LexiGuard/
 ├── src/lexiguard/
 │   ├── config.py              # Configuration schemas
-│   ├── ingestion/             # PDF parsing & extraction
+│   ├── ingestion/             # PDF parsing, extraction, & vector store
 │   ├── graph/                 # Neo4j schema & cypher logic
 │   ├── agent/                 # LangGraph CRAG workflow
 │   ├── evaluation/            # Ragas metric computation
@@ -130,9 +140,10 @@ LexiGuard/
 ## Technology Stack
 
 * **Data Parsing:** pymupdf4llm
-* **LLM Extraction:** OpenAI / Gemini / NVIDIA, Pydantic, Instructor
+* **LLM Extraction & Embedding:** OpenAI / Gemini / NVIDIA, Pydantic, Instructor
 * **Graph Database:** Neo4j (Cypher)
-* **Agentic Orchestration:** LangGraph (Corrective RAG)
+* **Vector Database:** ChromaDB (Semantic Retrieval)
+* **Agentic Orchestration:** LangGraph (Hybrid Corrective RAG)
 * **Backend Application:** FastAPI
 * **Frontend Application:** React, Vite, Tailwind CSS, Recharts, ForceGraph2D
 * **Metrics & Evaluation:** Ragas

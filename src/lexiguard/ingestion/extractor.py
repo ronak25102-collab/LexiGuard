@@ -4,7 +4,15 @@ from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from lexiguard.config import LLMProvider, PROJECT_ROOT, get_settings
-from lexiguard.graph.schema import ContractData, ExtractionData
+from typing import TypeVar, Type
+from pydantic import BaseModel
+from lexiguard.graph.schema import ContractData, ExtractionData, PartyInfo
+
+T = TypeVar('T', bound=BaseModel)
+
+class PartyResolutionResult(BaseModel):
+    """Result of LLM-driven entity resolution."""
+    resolved_parties: list[PartyInfo]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -26,7 +34,7 @@ CUAD_CATEGORIES = [
 ]
 
 
-def _extract_with_openai(text_chunk: str, prompt: str) -> ExtractionData:
+def _extract_with_openai(text_chunk: str, prompt: str, model_class: Type[T] = ExtractionData) -> T:
     """Extract structured data using OpenAI via instructor."""
     import instructor
     from openai import OpenAI
@@ -36,7 +44,7 @@ def _extract_with_openai(text_chunk: str, prompt: str) -> ExtractionData:
     patched_client = instructor.from_openai(client)
 
     response = patched_client.chat.completions.create(
-        response_model=ExtractionData,
+        response_model=model_class,
         model=settings.openai_model,
         temperature=0.0,
         messages=[
@@ -47,7 +55,7 @@ def _extract_with_openai(text_chunk: str, prompt: str) -> ExtractionData:
     return response
 
 
-def _extract_with_nvidia(text_chunk: str, prompt: str) -> ExtractionData:
+def _extract_with_nvidia(text_chunk: str, prompt: str, model_class: Type[T] = ExtractionData) -> T:
     """Extract structured data using NVIDIA NIM's OpenAI-compatible API."""
     import instructor
     from openai import OpenAI
@@ -60,7 +68,7 @@ def _extract_with_nvidia(text_chunk: str, prompt: str) -> ExtractionData:
     patched_client = instructor.from_openai(client)
 
     response = patched_client.chat.completions.create(
-        response_model=ExtractionData,
+        response_model=model_class,
         model=settings.nvidia_model,
         temperature=0.0,
         messages=[
@@ -71,7 +79,7 @@ def _extract_with_nvidia(text_chunk: str, prompt: str) -> ExtractionData:
     return response
 
 
-def _extract_with_google(text_chunk: str, prompt: str) -> ExtractionData:
+def _extract_with_google(text_chunk: str, prompt: str, model_class: Type[T] = ExtractionData) -> T:
     """Extract structured data using Google Gemini via LangChain's with_structured_output."""
     from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -84,23 +92,23 @@ def _extract_with_google(text_chunk: str, prompt: str) -> ExtractionData:
         max_retries=1,  # Reduce retries within the LLM client
     )
 
-    structured_llm = llm.with_structured_output(ExtractionData)
+    structured_llm = llm.with_structured_output(model_class)
     full_prompt = f"{prompt}\n\n{text_chunk}"
     response = structured_llm.invoke(full_prompt)
     return response
 
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
-def _extract_chunk(text_chunk: str, prompt: str) -> ExtractionData:
+def _extract_chunk(text_chunk: str, prompt: str, model_class: Type[T] = ExtractionData) -> T:
     """Extract structured data from a chunk of text using the configured LLM."""
     settings = get_settings()
     try:
         if settings.llm_provider == LLMProvider.OPENAI:
-            return _extract_with_openai(text_chunk, prompt)
+            return _extract_with_openai(text_chunk, prompt, model_class)
         if settings.llm_provider == LLMProvider.GOOGLE:
-            return _extract_with_google(text_chunk, prompt)
+            return _extract_with_google(text_chunk, prompt, model_class)
         if settings.llm_provider == LLMProvider.NVIDIA:
-            return _extract_with_nvidia(text_chunk, prompt)
+            return _extract_with_nvidia(text_chunk, prompt, model_class)
         raise ValueError(f"Unsupported LLM provider: {settings.llm_provider}")
     except Exception as e:
         logger.warning(f"Extraction failed, retrying: {e}")
@@ -214,14 +222,7 @@ def extract_contract_entities(markdown_text: str, filename: str) -> ContractData
         merged.locations.extend(data.locations)
         merged.cross_references.extend(data.cross_references)
 
-    # Simple deduplication by party name
-    seen_parties = set()
-    unique_parties = []
-    for p in merged.parties:
-        if p.name not in seen_parties:
-            unique_parties.append(p)
-            seen_parties.add(p.name)
-    merged.parties = unique_parties
+    merged.parties = _resolve_parties_with_llm(merged.parties)
 
     # Convert ExtractionData to ContractData (adding source_file)
     return ContractData(
@@ -237,6 +238,46 @@ def extract_contract_entities(markdown_text: str, filename: str) -> ContractData
         cross_references=merged.cross_references,
     )
 
+
+
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
+def _resolve_parties_with_llm(parties: list[PartyInfo]) -> list[PartyInfo]:
+    """Deduplicate aliases into unified primary entities."""
+    if not parties:
+        return []
+        
+    logger.info(f"Running LLM entity resolution on {len(parties)} extracted parties...")
+    
+    prompt = '''
+    You are an expert legal entity resolution engine.
+    You will be given a list of extracted contracting parties. 
+    In legal documents, the same company may be referred to by multiple aliases 
+    (e.g., "Apex Enterprise Solutions, Inc.", "Apex", "The Client").
+    
+    Your job is to:
+    1. Identify all aliases that refer to the exact same legal entity.
+    2. Merge them into a SINGLE primary record per entity.
+    3. Use the most formal name as the primary name.
+    4. Keep the role (e.g., "Buyer", "Vendor"). If multiple roles exist, combine them or pick the most descriptive.
+    
+    Return ONLY the deduplicated, resolved list of primary parties.
+    '''
+    
+    parties_text = "\n".join([f"- Name: {p.name}, Role: {p.role}, Jurisdiction: {p.jurisdiction}" for p in parties])
+    
+    try:
+        result = _extract_chunk(parties_text, prompt, PartyResolutionResult)
+        logger.info(f"Entity resolution complete: Reduced {len(parties)} aliases to {len(result.resolved_parties)} unified entities.")
+        return result.resolved_parties
+    except Exception as e:
+        logger.error(f"Entity resolution failed, falling back to naive deduplication: {e}")
+        seen = set()
+        unique = []
+        for p in parties:
+            if p.name not in seen:
+                unique.append(p)
+                seen.add(p.name)
+        return unique
 
 def extract_all_contracts(parsed_dir: Path = None) -> list[ContractData]:
     """Process all markdown files in the directory."""
@@ -263,3 +304,4 @@ def extract_all_contracts(parsed_dir: Path = None) -> list[ContractData]:
 
 if __name__ == "__main__":
     extract_all_contracts()
+

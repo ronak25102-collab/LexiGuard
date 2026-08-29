@@ -1,4 +1,4 @@
-from langgraph.graph import END, START, StateGraph
+﻿from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from lexiguard.agent.nodes import (
@@ -6,6 +6,7 @@ from lexiguard.agent.nodes import (
     generate_with_disclaimer,
     grade_relevance,
     retrieve,
+    route_and_preprocess_query,
     rewrite_query,
 )
 from lexiguard.agent.state import GraphState
@@ -89,6 +90,7 @@ def build_graph() -> CompiledStateGraph:
     workflow = StateGraph(GraphState)
 
     # Add nodes
+    workflow.add_node("preprocess", route_and_preprocess_query)
     workflow.add_node("retrieve", retrieve)
     workflow.add_node("grade_relevance", grade_relevance)
     workflow.add_node("generate", generate)
@@ -96,7 +98,8 @@ def build_graph() -> CompiledStateGraph:
     workflow.add_node("generate_with_disclaimer", generate_with_disclaimer)
 
     # Add edges
-    workflow.add_edge(START, "retrieve")
+    workflow.add_edge(START, "preprocess")
+    workflow.add_edge("preprocess", "retrieve")
     workflow.add_edge("retrieve", "grade_relevance")
 
     workflow.add_conditional_edges(
@@ -152,3 +155,4 @@ if __name__ == "__main__":
     print("Running sample query...")
     result = run_agent("What are the termination conditions for the vendor agreement?", "Vendor_Agr_001")
     print(f"Result: {result}")
+

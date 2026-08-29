@@ -1,4 +1,4 @@
-"""FastAPI backend for LexiGuard.
+﻿"""FastAPI backend for LexiGuard.
 
 Exposes the LangGraph CRAG agent and Neo4j knowledge graph
 through a REST API with OpenAPI documentation.
@@ -30,6 +30,7 @@ from lexiguard.graph.neo4j_client import Neo4jClient, get_client
 from lexiguard.ingestion.parser import parse_contract
 from lexiguard.ingestion.extractor import extract_contract_entities
 from lexiguard.graph.builder import GraphBuilder
+from lexiguard.ingestion.vector_store import add_contract_to_vectorstore
 
 # Configure logging
 logging.basicConfig(
@@ -38,7 +39,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Module-level client — initialized during lifespan
+# Module-level client â€” initialized during lifespan
 _neo4j_client: Neo4jClient | None = None
 
 # Semaphore for concurrent upload limiting
@@ -62,7 +63,7 @@ async def lifespan(app: FastAPI):
         if _neo4j_client.verify_connection():
             logger.info("Neo4j connection verified.")
         else:
-            logger.warning("Neo4j connection could not be verified — running in degraded mode.")
+            logger.warning("Neo4j connection could not be verified â€” running in degraded mode.")
     except Exception as e:
         logger.error(f"Neo4j startup error: {e}")
 
@@ -113,9 +114,9 @@ def _provider_display_name() -> str:
     return "OpenAI"
 
 
-# ──────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Endpoints
-# ──────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -443,9 +444,7 @@ async def _process_contract_internal(file_path: Path, contract_id: str):
         except Exception as e:
             logger.error(f"PDF parsing failed for {contract_id}: {e}", exc_info=True)
             update_status("error", 0, f"Failed to parse PDF: {str(e)}")
-            return
-        
-        # Save parsed markdown
+            return        # Save parsed markdown
         try:
             parsed_file = PARSED_DATA_DIR / f"{contract_id}.md"
             PARSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -455,6 +454,15 @@ async def _process_contract_internal(file_path: Path, contract_id: str):
             logger.error(f"Failed to save markdown for {contract_id}: {e}", exc_info=True)
             update_status("error", 0, f"Failed to save parsed text: {str(e)}")
             return
+            
+        # PATH B: Embed and store in ChromaDB (Semantic Brain)
+        logger.info(f"Starting semantic embedding for {contract_id}")
+        update_status("embedding", 40, "Generating semantic embeddings...")
+        try:
+            await asyncio.to_thread(add_contract_to_vectorstore, contract_id, markdown_text)
+        except Exception as e:
+            logger.error(f"Failed to generate embeddings for {contract_id}: {e}", exc_info=True)
+            # We don't abort here; we can still build the Neo4j graph even if vector storage fails.
         
         # Step 2: Extract structured data using LLM (with timeout protection)
         logger.info(f"Starting entity extraction for {contract_id}")
@@ -757,3 +765,4 @@ if __name__ == "__main__":
         port=settings.app_port,
         reload=True,
     )
+

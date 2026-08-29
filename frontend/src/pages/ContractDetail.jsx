@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, ShieldAlert, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
@@ -59,21 +59,21 @@ export default function ContractDetail() {
 
     // Contract Node
     const contractNodeId = `Contract_${contract.id}`;
-    nodes.push({ id: contractNodeId, name: contract.title, group: 'Contract', color: '#3b82f6', val: 20 });
+    nodes.push({ id: contractNodeId, name: contract.title, group: 'Contract', color: '#0f172a', val: 20 });
 
     // Location/Law Node
     if (contract.governingLaw) {
       const lawId = `Law_${contract.governingLaw}`;
-      nodes.push({ id: lawId, name: contract.governingLaw, group: 'Law', color: '#a855f7', val: 10 });
-      links.push({ source: contractNodeId, target: lawId, name: 'GOVERNED_BY', color: '#475569' });
+      nodes.push({ id: lawId, name: contract.governingLaw, group: 'Law', color: '#475569', val: 10 });
+      links.push({ source: contractNodeId, target: lawId, name: 'GOVERNED_BY', color: '#cbd5e1' });
     }
 
     // Party Nodes
     if (contract.parties) {
       contract.parties.forEach((party, i) => {
         const partyId = `Party_${i}_${party}`;
-        nodes.push({ id: partyId, name: party, group: 'Party', color: '#22c55e', val: 15 });
-        links.push({ source: contractNodeId, target: partyId, name: 'HAS_PARTY', color: '#475569' });
+        nodes.push({ id: partyId, name: party, group: 'Party', color: '#0284c7', val: 15 });
+        links.push({ source: contractNodeId, target: partyId, name: 'HAS_PARTY', color: '#cbd5e1' });
       });
     }
 
@@ -81,12 +81,12 @@ export default function ContractDetail() {
     if (contract.clauses) {
       contract.clauses.forEach((clause, i) => {
         const clauseId = `Clause_${i}`;
-        nodes.push({ id: clauseId, name: clause.title || `Clause ${i+1}`, group: 'Clause', color: '#f97316', val: 8 });
-        links.push({ source: contractNodeId, target: clauseId, name: 'CONTAINS_CLAUSE', color: '#475569' });
+        nodes.push({ id: clauseId, name: clause.title || `Clause ${i+1}`, group: 'Clause', color: '#0d9488', val: 8 });
+        links.push({ source: contractNodeId, target: clauseId, name: 'CONTAINS_CLAUSE', color: '#cbd5e1' });
         
         // Mock cross-references
         if (i > 0 && Math.random() > 0.8) {
-           links.push({ source: clauseId, target: `Clause_${i-1}`, name: 'REFERENCES', color: '#ef4444', dashed: true });
+           links.push({ source: clauseId, target: `Clause_${i-1}`, name: 'REFERENCES', color: '#94a3b8', dashed: true });
         }
       });
     }
@@ -131,13 +131,13 @@ export default function ContractDetail() {
           <div className="p-4 border-b border-white/50 bg-white/40 backdrop-blur-xl z-10 flex justify-between items-center">
             <h2 className="text-lg font-semibold text-slate-900">Knowledge Graph View</h2>
             <div className="flex space-x-3 text-xs">
-               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-700 mr-1"></span>Contract</span>
-               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-500 mr-1"></span>Party</span>
-               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-orange-500 mr-1"></span>Clause</span>
-               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-purple-500 mr-1"></span>Law</span>
+               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-900 mr-1"></span>Contract</span>
+               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-sky-600 mr-1"></span>Party</span>
+               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-teal-600 mr-1"></span>Clause</span>
+               <span className="flex items-center"><span className="w-3 h-3 rounded-full bg-slate-600 mr-1"></span>Law</span>
             </div>
           </div>
-          <div className="flex-grow relative bg-white/60/50">
+          <div className="flex-grow relative bg-transparent">
             <ForceGraph2D
               ref={graphRef}
               graphData={graphData}
@@ -151,7 +151,7 @@ export default function ContractDetail() {
               width={800} // ideally resize observer based
               height={600}
               onEngineStop={() => graphRef.current?.zoomToFit(400, 20)}
-              backgroundColor="#0f172a"
+              backgroundColor="rgba(255, 255, 255, 0)"
             />
           </div>
         </div>
@@ -189,3 +189,6 @@ export default function ContractDetail() {
     </div>
   );
 }
+
+
+

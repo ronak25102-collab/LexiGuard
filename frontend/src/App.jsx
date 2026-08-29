@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { Routes, Route } from 'react-router-dom';
+﻿import React, { useEffect, useRef } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import PageTransition from './components/PageTransition';
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
 import ContractDetail from './pages/ContractDetail';
@@ -9,6 +11,7 @@ import Upload from './pages/Upload';
 
 function App() {
   const vantaRef = useRef(null);
+  const location = useLocation();
 
   useEffect(() => {
     let vantaEffect;
@@ -43,16 +46,20 @@ function App() {
       
       <Navbar />
       <main className="app-main flex-grow container mx-auto px-4 py-8 max-w-7xl relative z-10">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/contract/:id" element={<ContractDetail />} />
-          <Route path="/query" element={<QueryInterface />} />
-          <Route path="/evaluation" element={<EvaluationDashboard />} />
-          <Route path="/upload" element={<Upload />} />
-        </Routes>
+                <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<PageTransition><Dashboard /></PageTransition>} />
+            <Route path="/contract/:id" element={<PageTransition><ContractDetail /></PageTransition>} />
+            <Route path="/query" element={<PageTransition><QueryInterface /></PageTransition>} />
+            <Route path="/evaluation" element={<PageTransition><EvaluationDashboard /></PageTransition>} />
+            <Route path="/upload" element={<PageTransition><Upload /></PageTransition>} />
+          </Routes>
+        </AnimatePresence>
       </main>
     </div>
   );
 }
 
 export default App;
+
+
