@@ -37,11 +37,19 @@ def get_llm():
     elif settings.llm_provider == LLMProvider.GOOGLE:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
-        return ChatGoogleGenerativeAI(
+        primary_llm = ChatGoogleGenerativeAI(
             temperature=0,
             model=settings.google_model,
             api_key=settings.google_api_key,
         )
+        
+        fallback_llm = ChatGoogleGenerativeAI(
+            temperature=0,
+            model="gemini-3.5-flash-lite",
+            api_key=settings.google_api_key,
+        )
+        
+        return primary_llm.with_fallbacks([fallback_llm])
     elif settings.llm_provider == LLMProvider.NVIDIA:
         from langchain_openai import ChatOpenAI
 
