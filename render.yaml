@@ -1,0 +1,36 @@
+services:
+  # 1. FastAPI Backend
+  - type: web
+    name: lexiguard-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    # Note: Free tier on Render doesn't support persistent disks. 
+    # For production ChromaDB persistence, you must upgrade to the $7/mo Starter plan and uncomment this disk:
+    # disk:
+    #   name: data
+    #   mountPath: /app/data
+    #   sizeGB: 1
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false # You will enter this in the Render Dashboard
+      - key: NEO4J_URI
+        sync: false # Enter your Neo4j AuraDB URI here
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false # Enter your Neo4j AuraDB Password here
+
+  # 2. React Frontend
+  - type: web
+    name: lexiguard-ui
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    rootDir: frontend
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: lexiguard-api
+          envVarKey: RENDER_EXTERNAL_URL

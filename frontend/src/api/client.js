@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -41,7 +41,7 @@ export const uploadContract = async (file) => {
   formData.append('file', file);
   
   try {
-    const response = await axios.post('/api/upload', formData, {
+    const response = await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/upload`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
