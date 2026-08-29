@@ -26,7 +26,7 @@
     name: lexiguard-ui
     env: static
     buildCommand: npm install && npm run build
-    staticPublishPath: ./frontend/dist
+    staticPublishPath: ./dist
     rootDir: frontend
     envVars:
       - key: VITE_API_URL
@@ -34,4 +34,5 @@
           type: web
           name: lexiguard-api
           envVarKey: RENDER_EXTERNAL_URL
+
 
