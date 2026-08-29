@@ -41,6 +41,7 @@ def get_llm():
             temperature=0,
             model=settings.google_model,
             api_key=settings.google_api_key,
+            max_retries=0, # Instantly failover to lite model on rate limit
         )
         
         fallback_llm = ChatGoogleGenerativeAI(

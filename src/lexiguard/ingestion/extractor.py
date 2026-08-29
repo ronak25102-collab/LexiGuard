@@ -89,10 +89,20 @@ def _extract_with_google(text_chunk: str, prompt: str, model_class: Type[T] = Ex
         api_key=settings.google_api_key,
         temperature=0.0,
         timeout=60,  # 60 second timeout
-        max_retries=1,  # Reduce retries within the LLM client
+        max_retries=0,  # Fail instantly to trigger fallback
     )
-
-    structured_llm = llm.with_structured_output(model_class)
+    
+    fallback_llm = ChatGoogleGenerativeAI(
+        model="gemini-3.5-flash-lite",
+        api_key=settings.google_api_key,
+        temperature=0.0,
+        timeout=60,
+        max_retries=1,
+    )
+    
+    # with_structured_output must be applied to the runnable with fallbacks
+    structured_llm = llm.with_fallbacks([fallback_llm]).with_structured_output(model_class)
+    
     full_prompt = f"{prompt}\n\n{text_chunk}"
     response = structured_llm.invoke(full_prompt)
     return response
