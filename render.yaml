@@ -1,4 +1,4 @@
-services:
+﻿services:
   # 1. FastAPI Backend
   - type: web
     name: lexiguard-api
@@ -12,7 +12,7 @@ services:
     #   mountPath: /app/data
     #   sizeGB: 1
     envVars:
-      - key: OPENAI_API_KEY
+      - key: GOOGLE_API_KEY
         sync: false # You will enter this in the Render Dashboard
       - key: NEO4J_URI
         sync: false # Enter your Neo4j AuraDB URI here
@@ -34,3 +34,4 @@ services:
           type: web
           name: lexiguard-api
           envVarKey: RENDER_EXTERNAL_URL
+
