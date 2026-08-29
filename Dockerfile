@@ -1,4 +1,4 @@
-# Use an official Python runtime as a parent image
+﻿# Use an official Python runtime as a parent image
 FROM python:3.12-slim
 
 # Set environment variables
@@ -12,14 +12,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # Set work directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
-
-# Install dependencies using uv
-RUN uv sync --frozen --no-cache
-
-# Copy the rest of the application
+# Copy the entire application FIRST so uv sync can find the src directory
 COPY . .
+
+# Install dependencies using uv (and install the project itself)
+RUN uv sync --frozen --no-cache
 
 # Expose the port Render expects
 EXPOSE 10000
