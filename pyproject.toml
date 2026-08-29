@@ -42,6 +42,7 @@ dependencies = [
     "rich>=13.7.0",
     "chromadb>=1.5.9",
     "langchain-chroma>=1.1.0",
+    "python-multipart>=0.0.32",
 ]
 
 [project.optional-dependencies]
