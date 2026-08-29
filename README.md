@@ -1,4 +1,4 @@
-﻿# LexiGuard: Enterprise Legal GraphRAG and Compliance Agent
+# LexiGuard: Enterprise Legal GraphRAG and Compliance Agent
 
 ![LexiGuard Live](https://img.shields.io/badge/Live_Demo-lexiguard--ui.onrender.com-brightgreen?style=for-the-badge&logo=render)
 
@@ -19,7 +19,7 @@ LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve mul
 
 ## System Architecture
 
-`	ext
+```text
 [ Legal PDF ] -> [ pymupdf4llm ] -> [ Markdown Text ]
                                           |
                    ------------------------------------------------
@@ -40,7 +40,7 @@ LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve mul
                           [ PASS ]               [ FAIL ]
                              |                      |
                    [ Synthesize Answer ]     [ Rewrite Query ]
-`
+```
 
 ## Knowledge Graph Schema
 
@@ -56,7 +56,8 @@ The Neo4j ontology explicitly models commercial contracts:
   * (Clause)-[:EXCLUDES]->(Clause)
 
 ## Cloud Deployment Architecture
-LexiGuard is fully containerized and configured for CI/CD deployment on **Render** via Infrastructure as Code (ender.yaml).
+LexiGuard is fully containerized and configured for CI/CD deployment on **Render** via Infrastructure as Code (
+ender.yaml).
 * **Backend:** Dockerized FastAPI service leveraging the uv package manager for highly optimized, cached build layers. Exposed via port 10000.
 * **Frontend:** React + Vite Single Page Application deployed as a highly cached Static Site with custom Catch-All rewrite rules for client-side routing.
 
@@ -116,3 +117,5 @@ Navigate to http://localhost:5173 to access the LexiGuard dashboard.
 ## License
 
 This project is licensed under the MIT License. See the \LICENSE\ file for details.
+
+
