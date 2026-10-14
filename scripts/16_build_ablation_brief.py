@@ -28,7 +28,6 @@ def main():
         story.append(Paragraph(text, style))
 
     paragraph("LexiGuard live retrieval ablation", title)
-    paragraph("Ronak Kumar - Evaluation frozen 14 October 2026")
     paragraph("24 fresh CUAD questions, 6 public contracts, live Neo4j Aura")
     paragraph("CRAG restored context precision from 0.465 in the unprotected hybrid to 0.729, "
               "matching the vector baseline. Its faithfulness was 0.934 versus the baseline's "
