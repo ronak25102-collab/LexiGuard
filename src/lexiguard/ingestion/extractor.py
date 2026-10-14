@@ -40,12 +40,17 @@ def _extract_with_openai(text_chunk: str, prompt: str, model_class: Type[T] = Ex
     from openai import OpenAI
 
     settings = get_settings()
-    client = OpenAI(api_key=settings.openai_api_key)
-    patched_client = instructor.from_openai(client)
+    gateway = settings.llm_provider == LLMProvider.CODECRAFT
+    client = OpenAI(api_key=settings.active_api_key,
+                    base_url=settings.codecraft_base_url if gateway else None)
+    # This gateway accepts JSON mode but rejects Instructor's forced tool choice.
+    patched_client = instructor.from_openai(
+        client, mode=instructor.Mode.JSON if gateway else instructor.Mode.TOOLS
+    )
 
     response = patched_client.chat.completions.create(
         response_model=model_class,
-        model=settings.openai_model,
+        model=settings.active_model,
         temperature=0.0,
         messages=[
             {"role": "system", "content": prompt},
@@ -100,8 +105,10 @@ def _extract_with_google(text_chunk: str, prompt: str, model_class: Type[T] = Ex
         max_retries=1,
     )
     
-    # with_structured_output must be applied to the runnable with fallbacks
-    structured_llm = llm.with_fallbacks([fallback_llm]).with_structured_output(model_class)
+    # Bind schemas before composing runnables; RunnableWithFallbacks is not a chat model.
+    structured_llm = llm.with_structured_output(model_class).with_fallbacks(
+        [fallback_llm.with_structured_output(model_class)]
+    )
     
     full_prompt = f"{prompt}\n\n{text_chunk}"
     response = structured_llm.invoke(full_prompt)
@@ -113,7 +120,7 @@ def _extract_chunk(text_chunk: str, prompt: str, model_class: Type[T] = Extracti
     """Extract structured data from a chunk of text using the configured LLM."""
     settings = get_settings()
     try:
-        if settings.llm_provider == LLMProvider.OPENAI:
+        if settings.llm_provider in {LLMProvider.OPENAI, LLMProvider.CODECRAFT}:
             return _extract_with_openai(text_chunk, prompt, model_class)
         if settings.llm_provider == LLMProvider.GOOGLE:
             return _extract_with_google(text_chunk, prompt, model_class)

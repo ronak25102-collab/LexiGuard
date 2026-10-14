@@ -1766,6 +1766,7 @@ name = "lexiguard"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "certifi" },
     { name = "chromadb" },
     { name = "datasets" },
     { name = "fastapi" },
@@ -1805,6 +1806,7 @@ llama-cloud = [
 
 [package.metadata]
 requires-dist = [
+    { name = "certifi", specifier = ">=2024.2.2" },
     { name = "chromadb", specifier = ">=1.5.9" },
     { name = "datasets", specifier = ">=2.19.0" },
     { name = "fastapi", specifier = ">=0.111.0" },

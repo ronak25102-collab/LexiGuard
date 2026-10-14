@@ -9,8 +9,6 @@ from typing import Any
 
 from lexiguard.agent.prompts import (
     ANSWER_GENERATION_PROMPT,
-    CYPHER_GENERATION_PROMPT,
-    DISCLAIMER_PROMPT,
     QUERY_REWRITE_PROMPT,
     RELEVANCE_GRADING_PROMPT,
 )
@@ -34,6 +32,11 @@ def get_llm():
             model=settings.openai_model,
             api_key=settings.openai_api_key,
         )
+    elif settings.llm_provider == LLMProvider.CODECRAFT:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(model=settings.codecraft_model, api_key=settings.codecraft_api_key,
+                          base_url=settings.codecraft_base_url, temperature=0,
+                          max_tokens=8192, timeout=90, max_retries=2)
     elif settings.llm_provider == LLMProvider.GOOGLE:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -42,12 +45,15 @@ def get_llm():
             model=settings.google_model,
             api_key=settings.google_api_key,
             max_retries=0, # Instantly failover to lite model on rate limit
+            timeout=45,
         )
         
         fallback_llm = ChatGoogleGenerativeAI(
             temperature=0,
             model="gemini-3.5-flash-lite",
             api_key=settings.google_api_key,
+            max_retries=1,
+            timeout=45,
         )
         
         return primary_llm.with_fallbacks([fallback_llm])
@@ -74,6 +80,10 @@ def get_llm():
                     "thinking": settings.nvidia_thinking,
                     "reasoning_effort": settings.nvidia_reasoning_effort,
                 }
+            }
+        elif "nemotron-3-" in settings.nvidia_model:
+            nvidia_options["extra_body"] = {
+                "chat_template_kwargs": {"enable_thinking": settings.nvidia_thinking}
             }
 
         return ChatOpenAI(**nvidia_options)
@@ -129,135 +139,163 @@ def route_and_preprocess_query(state: GraphState) -> dict[str, Any]:
         parsed = json.loads(clean_json)
         intent = parsed.get("intent", "SPECIFIC")
         search_terms = parsed.get("extracted_topics", []) + parsed.get("extracted_parties", [])
+        roles = {"client", "vendor", "company", "developer", "ma", "affiliate", "network"}
+        party_filter = [p for p in parsed.get("extracted_parties", [])
+                        if isinstance(p, str) and p.strip() and p.strip().lower() not in roles]
     except Exception as e:
         logger.error(f"Preprocessing failed: {e}")
         intent = "SPECIFIC"
         search_terms = [question]
+        party_filter = []
 
     logger.info(f"Intent: {intent}, Search terms: {search_terms}")
     
     return {
         "intent": intent,
         "search_terms": search_terms,
+        "party_filter": party_filter,
     }
 
-def retrieve(state: GraphState) -> dict[str, Any]:
-    """Generate Cypher query, retrieve graph context, and query ChromaDB for semantic context.
 
-    This node implements Hybrid Retrieval:
-    1. Sends the user's question to the LLM with the Cypher generation prompt (Path A)
-    2. Executes the generated Cypher query against Neo4j (Path A)
-    3. Queries ChromaDB for semantic matches (Path B)
-    4. Merges both into graph_context
-    """
-    logger.info("Node: retrieve - Generating Cypher and querying hybrid databases")
-    question = state["question"]
-    contract_filter = state.get("contract_filter")
-    intent = state.get("intent", "SPECIFIC")
-    search_terms = state.get("search_terms", [])
+SCOPE_QUERY = """
+MATCH (c:Contract)
+WHERE $filter IS NULL OR c.id = $filter OR c.title = $filter OR c.source_file = $filter
+OPTIONAL MATCH (c)-[:HAS_PARTY]->(p:Party)
+WITH c, collect(DISTINCT p.name) AS parties
+WHERE $filter IS NOT NULL OR size($party_names) = 0 OR
+      any(wanted IN $party_names WHERE
+          any(actual IN parties WHERE toLower(actual) CONTAINS toLower(wanted)))
+RETURN c.id AS contract_id, c.title AS contract_title, c.source_file AS source_file,
+       parties
+"""
 
-    if intent == "SUMMARY":
-        logger.info("Handling SUMMARY query directly with Neo4j fast-track")
-        client = _get_neo4j_client()
-        query = '''
-        MATCH (c:Contract)
-        WHERE $contract_id IS NULL OR c.id = $contract_id OR toLower(c.title) CONTAINS toLower($contract_id)
-        OPTIONAL MATCH (c)-[:HAS_PARTY]->(p:Party)
-        OPTIONAL MATCH (c)-[:CONTAINS_CLAUSE]->(cl:Clause)
-        RETURN c.title AS title, 
-               c.contract_type AS type, 
-               collect(DISTINCT p.name) AS parties, 
-               collect(DISTINCT cl.title)[..8] AS key_sections
-        LIMIT 1
-        '''
-        results = client.run_query(query, {"contract_id": contract_filter})
-        
-        context_list = []
-        for record in results:
-            summary_text = (
-                f"Contract Title: {record.get('title')}\n"
-                f"Type: {record.get('type')}\n"
-                f"Parties Involved: {', '.join(record.get('parties', []))}\n"
-                f"Key Sections: {', '.join(record.get('key_sections', []))}"
-            )
-            context_list.append(summary_text)
-            
-        return {
-            "cypher_query": query,
-            "graph_context": context_list,
-            "documents": [],
-        }
+CLAUSE_QUERY = """
+MATCH (c:Contract)-[:CONTAINS_CLAUSE]->(cl:Clause)
+WHERE c.id IN $contract_ids
+AND any(term IN $terms WHERE
+    toLower(coalesce(cl.title, '')) CONTAINS term OR
+    toLower(coalesce(cl.clause_type, '')) CONTAINS term OR
+    toLower(coalesce(cl.text, '')) CONTAINS term)
+RETURN c.id AS contract_id, cl.id AS id, cl.number AS section,
+       cl.title AS title, cl.text AS text, cl.clause_type AS clause_type
+ORDER BY cl.number
+LIMIT 120
+"""
 
-    llm = get_llm()
+LINK_QUERY = """
+MATCH (seed:Clause)-[r]-(linked:Clause)
+MATCH (c:Contract)-[:CONTAINS_CLAUSE]->(linked)
+WHERE seed.id IN $seed_ids AND c.id IN $contract_ids
+AND type(r) IN ['REFERENCES', 'MODIFIES', 'SUPERSEDES', 'EXCLUDES']
+RETURN c.id AS contract_id, linked.id AS id, linked.number AS section,
+       linked.title AS title, linked.text AS text, linked.clause_type AS clause_type,
+       seed.number AS linked_to, type(r) AS relationship
+LIMIT 60
+"""
 
-    # Build the prompt with optional contract filter
-    prompt_text = CYPHER_GENERATION_PROMPT
-    if contract_filter:
-        prompt_text += f"\n\nIMPORTANT: Filter results for contract title or ID: {contract_filter}"
-        
-    if search_terms:
-        prompt_text += f"\n\nExtracted Key Terms (use these for exact/fuzzy matching instead of raw scenario text): {', '.join(search_terms)}"
-    cypher_query = ""
-    try:
-        # PATH A: Neo4j Structured Graph Retrieval
-        response = llm.invoke(f"{prompt_text}\n\nQuestion: {question}")
-        cypher_query = _get_text(response)
 
-        # Clean up: remove markdown code fences if the LLM wraps the query
-        if cypher_query.startswith("`"):
-            lines = cypher_query.split("\n")
-            cypher_query = "\n".join(
-                line for line in lines if not line.strip().startswith("`")
-            )
+def _local_source_candidates(question, contract_filter, contracts, party_names=None):
+    """Lexical fallback searches source text when vector indexing is unavailable."""
+    import hashlib
+    import json
+    from lexiguard.config import PARSED_DATA_DIR, DATA_DIR
+    from lexiguard.agent.retrieval import normalize, rank_candidates, source_aliases
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-        logger.info(f"Generated Cypher: {cypher_query}")
-
-        # Execute against Neo4j
-        client = _get_neo4j_client()
-        results = client.run_query(cypher_query)
-
-        # Extract context from results
-        context_list = []
-        doc_list = []
-        for record in results:
-            # Convert each record to a readable string
-            record_str = " | ".join(f"{k}: {v}" for k, v in record.items() if v)
-            if record_str:
-                context_list.append(f"[GRAPH] {record_str}")
-                doc_list.append(dict(record))
-
-        logger.info(f"Retrieved {len(context_list)} results from Neo4j")
-
-        # PATH B: ChromaDB Semantic Vector Retrieval
+    metadata = {c.get("source_file"): c for c in contracts}
+    extracted_path = DATA_DIR / "extracted_contracts.json"
+    if extracted_path.exists():
         try:
-            vectorstore = get_vectorstore()
-            # For ChromaDB, filter syntax is metadata filtering
-            search_kwargs = {"k": 3}
-            # We don't have exact contract_id in filter sometimes (it might be title), 
-            # so we just do a generic search if we aren't sure, but let's try.
-            # We'll just do a standard similarity search without strict metadata filtering for now
-            # to ensure we don't drop results due to ID mismatch.
-            semantic_docs = vectorstore.similarity_search(" ".join(search_terms) if search_terms else question, **search_kwargs)
-            logger.info(f"Retrieved {len(semantic_docs)} semantic results from ChromaDB")
-            
-            for doc in semantic_docs:
-                context_list.append(f"[SEMANTIC] {doc.page_content}")
-                doc_list.append({"type": "semantic_chunk", "content": doc.page_content, "metadata": doc.metadata})
-        except Exception as ve:
-            logger.error(f"Semantic retrieve error (ChromaDB): {ve}")
+            for c in json.loads(extracted_path.read_text("utf-8")):
+                metadata.setdefault(c["source_file"], {
+                    "contract_id": hashlib.sha256(c["source_file"].encode()).hexdigest(),
+                    "contract_title": c["title"], "source_file": c["source_file"],
+                    "parties": [p["name"] for p in c["parties"]],
+                })
+        except (ValueError, KeyError):
+            logger.warning("Local extraction metadata could not be read")
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
+    docs = []
+    for path in sorted(PARSED_DATA_DIR.glob("*.md")):
+        record = metadata.get(path.name) or metadata.get(path.stem) or {}
+        content = path.read_text("utf-8")
+        if not record:
+            source = path.stem if path.with_suffix(".status").exists() else path.name
+            title = next((line.lstrip("# ").strip() for line in content.splitlines()
+                          if line.startswith("#")), path.stem)
+            record = {"contract_id": hashlib.sha256(source.encode()).hexdigest(),
+                      "contract_title": title, "source_file": source}
+        if contract_filter and contract_filter not in source_aliases(record):
+            if normalize(contract_filter) != normalize(record.get("contract_title", "")):
+                continue
+        if not contract_filter and party_names:
+            parties_text = normalize(" ".join(record.get("parties", [])) or content[:2000])
+            if not any(normalize(name) in parties_text for name in party_names):
+                continue
+        for chunk in splitter.split_text(content):
+            docs.append({**record, "text": chunk, "kind": "lexical_source", "section": None})
+    return rank_candidates(question, docs)[:12]
 
-        return {
-            "cypher_query": cypher_query,
-            "graph_context": context_list,
-            "documents": doc_list,
-        }
-    except Exception as e:
-        logger.error(f"Retrieve error: {e}")
-        return {
-            "cypher_query": cypher_query,
-            "graph_context": [],
-            "documents": [],
-        }
+
+def retrieve(state: GraphState, *, use_graph: bool = True, use_links: bool = True) -> dict[str, Any]:
+    """Retrieve scoped graph and semantic evidence independently, then fuse it."""
+    from lexiguard.agent.retrieval import (
+        rank_candidates, search_query, select_context, source_aliases, topic_terms,
+    )
+
+    original = state["question"]
+    query = state.get("retrieval_question") or original
+    contract_filter = state.get("contract_filter")
+    party_names = state.get("party_filter", []) if not contract_filter else []
+    contracts, graph_docs, semantic_docs, errors = [], [], [], []
+    cypher = CLAUSE_QUERY.strip()
+    try:
+        client = _get_neo4j_client()
+        contracts = client.run_query(SCOPE_QUERY, {"filter": contract_filter,
+                                                  "party_names": party_names})
+        ids = [c["contract_id"] for c in contracts]
+        info = {c["contract_id"]: c for c in contracts}
+        if ids and use_graph:
+            rows = client.run_query(CLAUSE_QUERY, {"contract_ids": ids, "terms": topic_terms(query)})
+            graph_docs = [{**info[r["contract_id"]], **r, "kind": "graph"}
+                          for r in rows if r.get("text")]
+            seeds = rank_candidates(original, graph_docs)[:2]
+            if seeds and use_links:
+                linked = client.run_query(
+                    LINK_QUERY, {"seed_ids": [d["id"] for d in seeds], "contract_ids": ids}
+                )
+                graph_docs = seeds + [{**info[r["contract_id"]], **r, "kind": "graph"}
+                                      for r in linked if r.get("text")] + graph_docs
+    except Exception as error:
+        logger.warning("Graph retrieval unavailable: %s", type(error).__name__)
+        errors.append("graph_unavailable")
+
+    # Graph errors must not discard successful semantic retrieval.
+    try:
+        vectorstore = get_vectorstore()
+        kwargs = {"k": 8}
+        if contract_filter or party_names:
+            aliases = [alias for c in contracts for alias in source_aliases(c)]
+            if not aliases:
+                if party_names:
+                    raise ValueError("Named-party scope could not be resolved")
+                aliases = [contract_filter]
+            kwargs["filter"] = {"contract_id": {"$in": list(dict.fromkeys(aliases))}}
+        for doc in vectorstore.similarity_search(search_query(query), **kwargs):
+            metadata = dict(doc.metadata)
+            contract = next((c for c in contracts if metadata.get("contract_id")
+                             in source_aliases(c)), {})
+            semantic_docs.append({**metadata, **contract, "text": doc.page_content,
+                                  "kind": "semantic", "section": None})
+    except Exception as error:
+        logger.warning("Semantic retrieval unavailable: %s", type(error).__name__)
+        errors.append("semantic_unavailable")
+    if not semantic_docs:
+        semantic_docs = _local_source_candidates(query, contract_filter, contracts, party_names)
+    selected = select_context(original, graph_docs, semantic_docs)
+    return {"cypher_query": cypher, "graph_context": [d["text"] for d in selected],
+            "documents": selected, "retrieval_errors": errors,
+            "semantic_documents": select_context(original, [], semantic_docs)}
 
 
 def grade_relevance(state: GraphState) -> dict[str, Any]:
@@ -267,9 +305,36 @@ def grade_relevance(state: GraphState) -> dict[str, Any]:
     if the retrieved data is actually relevant before generating an answer.
     """
     logger.info("Node: grade_relevance — Evaluating context quality")
+
+    # Compare alternatives rather than judging only a possibly degraded fusion.
+    if "semantic_documents" in state:
+        import json
+        from lexiguard.agent.prompts import EVIDENCE_SELECTION_PROMPT
+        semantic = state["semantic_documents"]
+        hybrid = state.get("documents", [])
+        prompt = EVIDENCE_SELECTION_PROMPT.format(
+            question=state["question"], semantic="\n".join(d["text"] for d in semantic),
+            hybrid="\n".join(d["text"] for d in hybrid))
+        response = _get_text(get_llm().invoke(prompt))
+        try:
+            value = json.loads(response.strip().removeprefix("```json").removeprefix("```")
+                               .removesuffix("```").strip())
+            choice = value["choice"]
+            relevance = value["relevance"]
+            if choice not in {"semantic", "hybrid"} or relevance not in {"relevant", "irrelevant"}:
+                raise ValueError("Invalid evidence selection")
+            selected = semantic if choice == "semantic" else hybrid
+            return {"documents": selected, "graph_context": [d["text"] for d in selected],
+                    "relevance_score": relevance if selected else "irrelevant",
+                    "evidence_choice": choice, "evidence_reason": str(value.get("reason", ""))}
+        except (KeyError, ValueError, TypeError):
+            # Preserve the semantic alternative and retry, rather than accepting a bad fusion.
+            return {"documents": semantic, "graph_context": [d["text"] for d in semantic],
+                    "relevance_score": "irrelevant", "evidence_choice": "invalid_selection",
+                    "evidence_reason": "Evidence selection could not be validated."}
     
     # --- Bypass CRAG auditor for general summaries ---
-    if state.get("intent") == "SUMMARY":
+    if state.get("intent") == "SUMMARY" and state.get("graph_context"):
         logger.info("SUMMARY intent detected — bypassing auditor check")
         return {"relevance_score": "relevant"}
     # ---------------------------------------------------
@@ -322,7 +387,7 @@ def rewrite_query(state: GraphState) -> dict[str, Any]:
     retry limit.
     """
     logger.info("Node: rewrite_query Ã¢â‚¬â€ Reformulating question for better retrieval")
-    question = state["question"]
+    question = state.get("retrieval_question") or state["question"]
     retry_count = state.get("retry_count", 0) + 1
 
     llm = get_llm()
@@ -333,26 +398,12 @@ def rewrite_query(state: GraphState) -> dict[str, Any]:
 
     logger.info(f"Rewritten question (attempt {retry_count}): {new_question}")
     return {
-        "question": new_question,
+        "retrieval_question": new_question,
         "retry_count": retry_count,
     }
 
 
 def generate_with_disclaimer(state: GraphState) -> dict[str, Any]:
-    """Generate an answer with a verification disclaimer.
-
-    Called when the maximum number of retrieval retries has been exhausted
-    without finding sufficiently relevant context.
-    """
-    logger.info("Node: generate_with_disclaimer Ã¢â‚¬â€ Producing fallback answer")
-    question = state["question"]
-    context = "\n".join(state.get("graph_context", []))
-
-    llm = get_llm()
-    prompt = DISCLAIMER_PROMPT.format(question=question, context=context)
-
-    response = llm.invoke(prompt)
-    return {"generation": _get_text(response)}
-
-
-
+    """Abstain when retrieval remains insufficient; never invent contractual silence."""
+    return {"generation": "I could not retrieve enough evidence to answer this question reliably. "
+            "Please review the source contract or try a more specific query."}

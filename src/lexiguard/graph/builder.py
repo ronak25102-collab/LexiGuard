@@ -33,9 +33,29 @@ class GraphBuilder:
     def _generate_clause_id(self, contract_id: str, clause_number: str) -> str:
         return f"{contract_id}_{clause_number}"
 
-    def build_contract_graph(self, contract: ContractData) -> dict[str, Any]:
+    def build_contract_graph(self, contract: ContractData, source_text: str | None = None) -> dict[str, Any]:
         """Takes a single ContractData, creates all nodes and relationships."""
         logger.info(f"Building graph for contract: {contract.title} ({contract.source_file})")
+
+        from lexiguard.config import PARSED_DATA_DIR
+        from lexiguard.ingestion.source_sections import enrich_from_source
+
+        if source_text is None:
+            for name in (contract.source_file, contract.source_file + ".md"):
+                path = (PARSED_DATA_DIR / name).resolve()
+                if path.is_relative_to(PARSED_DATA_DIR.resolve()) and path.is_file():
+                    source_text = path.read_text("utf-8")
+                    break
+        if source_text:
+            contract = enrich_from_source(contract, source_text)
+            # Reconcile only obsolete recital labels produced by earlier source parsing.
+            # Main source sections and unrelated contracts are unaffected.
+            self.client.run_write("""
+                MATCH (c:Contract {id: $contract_id})-[:CONTAINS_CLAUSE]->(cl:Clause)
+                WHERE cl.number STARTS WITH 'Recitals.' AND NOT cl.number IN $numbers
+                DETACH DELETE cl
+                """, {"contract_id": self._generate_contract_id(contract.source_file),
+                      "numbers": [cl.number for cl in contract.clauses]})
 
         self._create_contract_node(contract)
         self._create_party_nodes(contract)
@@ -119,29 +139,19 @@ class GraphBuilder:
 
     def _create_clause_nodes(self, contract: ContractData) -> None:
         contract_id = self._generate_contract_id(contract.source_file)
-        for clause in contract.clauses:
-            clause_id = self._generate_clause_id(contract_id, clause.number)
-            query = """
-            MATCH (c:Contract {id: $contract_id})
-            MERGE (cl:Clause {id: $clause_id})
-            ON CREATE SET cl.number = $number,
-                          cl.title = $title,
-                          cl.text = $text,
-                          cl.clause_type = $clause_type
-            ON MATCH SET cl.title = $title,
-                         cl.text = $text,
-                         cl.clause_type = $clause_type
-            MERGE (c)-[:CONTAINS_CLAUSE]->(cl)
-            """
-            params = {
-                "contract_id": contract_id,
-                "clause_id": clause_id,
-                "number": clause.number,
-                "title": clause.title,
-                "text": clause.text,
-                "clause_type": clause.clause_type
-            }
-            self.client.run_write(query, params)
+        if not contract.clauses:
+            return
+        query = """
+        UNWIND $clauses AS item
+        MATCH (c:Contract {id: $contract_id})
+        MERGE (cl:Clause {id: item.id})
+        SET cl.number = item.number, cl.title = item.title,
+            cl.text = item.text, cl.clause_type = item.clause_type
+        MERGE (c)-[:CONTAINS_CLAUSE]->(cl)
+        """
+        self.client.run_write(query, {"contract_id": contract_id, "clauses": [
+            {**clause.model_dump(), "id": self._generate_clause_id(contract_id, clause.number)}
+            for clause in contract.clauses]})
 
     def _create_location_nodes(self, contract: ContractData) -> None:
         contract_id = self._generate_contract_id(contract.source_file)
@@ -161,30 +171,25 @@ class GraphBuilder:
 
     def _create_cross_references(self, contract: ContractData) -> None:
         contract_id = self._generate_contract_id(contract.source_file)
+        grouped = {}
         for xref in contract.cross_references:
             source_id = self._generate_clause_id(contract_id, xref.source_clause)
             target_id = self._generate_clause_id(contract_id, xref.target_clause)
-
-            # Using APOC or dynamic relationship type requires special syntax in pure cypher.
-            # Using apoc.create.relationship if available, or a generic relationship if not.
-            # For simplicity without APOC, we use a generic xref relation with a 'type' property,
-            # OR we execute an f-string parameterized query cautiously (since types can't be parameterized directly).
 
             rel_type = xref.relationship.upper()
             allowed_types = {"REFERENCES", "MODIFIES", "SUPERSEDES", "EXCLUDES"}
             if rel_type not in allowed_types:
                 rel_type = "REFERENCES"
 
+            grouped.setdefault(rel_type, []).append({"source_id": source_id, "target_id": target_id})
+        for rel_type, rows in grouped.items():
             query = f"""
-            MATCH (source:Clause {{id: $source_id}})
-            MATCH (target:Clause {{id: $target_id}})
+            UNWIND $edges AS item
+            MATCH (source:Clause {{id: item.source_id}})
+            MATCH (target:Clause {{id: item.target_id}})
             MERGE (source)-[r:{rel_type}]->(target)
             """
-            params = {
-                "source_id": source_id,
-                "target_id": target_id
-            }
-            self.client.run_write(query, params)
+            self.client.run_write(query, {"edges": rows})
 
 if __name__ == '__main__':
     from lexiguard.graph.schema import ClauseInfo, CrossReference, LocationInfo, PartyInfo

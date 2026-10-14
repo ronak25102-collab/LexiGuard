@@ -5,6 +5,7 @@ Neo4j knowledge graph, with connection management and error handling.
 """
 
 import logging
+import ssl
 from typing import Any
 
 from neo4j import GraphDatabase, ResultSummary
@@ -32,14 +33,33 @@ class Neo4jClient:
         self._uri = uri or settings.neo4j_uri
         self._username = username or settings.neo4j_username
         self._password = password or settings.neo4j_password
+        self._ca_file = settings.neo4j_ca_file
+        self._connection_timeout = settings.neo4j_connection_timeout
         self._driver = None
 
     def _ensure_driver(self) -> None:
         """Lazily initialize the driver on first use."""
         if self._driver is None:
+            uri = self._uri
+            options = {
+                "connection_timeout": self._connection_timeout,
+                "connection_acquisition_timeout": 30,
+                "max_transaction_retry_time": 15,
+            }
+            if uri.startswith(("neo4j+s://", "bolt+s://")):
+                import certifi
+
+                # Preserve certificate/hostname verification and add Mozilla roots.
+                # Portable Windows Python installations may lack these OS roots.
+                context = ssl.create_default_context()
+                context.load_verify_locations(cafile=str(self._ca_file or certifi.where()))
+                options["ssl_context"] = context
+                # Custom SSL contexts require the base scheme in the Neo4j driver.
+                uri = uri.replace("+s://", "://", 1)
             self._driver = GraphDatabase.driver(
-                self._uri,
+                uri,
                 auth=(self._username, self._password),
+                **options,
             )
             logger.info(f"Initialized Neo4j driver for {self._uri}")
 

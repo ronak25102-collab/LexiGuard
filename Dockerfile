@@ -22,4 +22,4 @@ RUN uv sync --frozen --no-cache
 EXPOSE 10000
 
 # Run the FastAPI server using the uv environment
-CMD ["uv", "run", "uvicorn", "src.lexiguard.api.main:app", "--host", "0.0.0.0", "--port", "10000"]
+CMD ["uv", "run", "--no-sync", "uvicorn", "lexiguard.api.main:app", "--host", "0.0.0.0", "--port", "10000"]

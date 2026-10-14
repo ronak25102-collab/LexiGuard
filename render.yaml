@@ -6,18 +6,26 @@
     dockerfilePath: ./Dockerfile
     plan: free
     # Note: Free tier on Render doesn't support persistent disks. 
-    # For production ChromaDB persistence, you must upgrade to the $7/mo Starter plan and uncomment this disk:
+    # To retain ChromaDB and parsed sources, use a disk-capable plan and mount data.
     # disk:
     #   name: data
     #   mountPath: /app/data
     #   sizeGB: 1
     envVars:
+      - key: LLM_PROVIDER
+        value: codecraft
+      - key: CODECRAFT_API_KEY
+        sync: false
+      - key: CODECRAFT_MODEL
+        value: gpt-5.6-luna
+      - key: EMBEDDING_PROVIDER
+        value: google
       - key: GOOGLE_API_KEY
         sync: false # You will enter this in the Render Dashboard
       - key: NEO4J_URI
         sync: false # Enter your Neo4j AuraDB URI here
-      - key: NEO4J_USER
-        value: neo4j
+      - key: NEO4J_USERNAME
+        sync: false # Use the username issued with your Aura credentials.
       - key: NEO4J_PASSWORD
         sync: false # Enter your Neo4j AuraDB Password here
 
@@ -28,6 +36,10 @@
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     rootDir: frontend
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_URL
         fromService:

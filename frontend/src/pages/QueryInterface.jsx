@@ -22,7 +22,7 @@ export default function QueryInterface() {
   // Contract filter state
   const [contracts, setContracts] = useState([]);
   const [selectedContract, setSelectedContract] = useState(
-    searchParams.get('contractTitle') || null
+    searchParams.get('contractId') || searchParams.get('contractTitle') || null
   );
   const [showContractPicker, setShowContractPicker] = useState(false);
 
@@ -30,22 +30,14 @@ export default function QueryInterface() {
   useEffect(() => {
     getContracts()
       .then(data => {
-        // Deduplicate by title
-        const seen = new Map();
-        data.forEach(c => {
-          if (!seen.has(c.title)) seen.set(c.title, c);
-        });
-        setContracts(Array.from(seen.values()));
+        setContracts(data);
       })
       .catch(() => {});
   }, []);
 
   // Sync URL param → state on mount
   useEffect(() => {
-    const title = searchParams.get('contractTitle');
-    if (title) {
-      setSelectedContract(title);
-    }
+    setSelectedContract(searchParams.get('contractId') || searchParams.get('contractTitle') || null);
   }, [searchParams]);
 
   const scrollToBottom = () => {
@@ -56,12 +48,15 @@ export default function QueryInterface() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const handleSelectContract = (title) => {
-    setSelectedContract(title);
+  const selectedTitle = contracts.find(c => c.contract_id === selectedContract)?.title
+    || (selectedContract && /^[a-f0-9]{64}$/.test(selectedContract) ? 'Selected contract' : selectedContract);
+
+  const handleSelectContract = (contractId) => {
+    setSelectedContract(contractId);
     setShowContractPicker(false);
     // Update URL without navigation
-    if (title) {
-      setSearchParams({ contractTitle: title }, { replace: true });
+    if (contractId) {
+      setSearchParams({ contractId }, { replace: true });
     } else {
       setSearchParams({}, { replace: true });
     }
@@ -82,7 +77,7 @@ export default function QueryInterface() {
       id: Date.now(),
       role: 'user',
       content: textToSend,
-      contract: selectedContract, // record which contract was queried
+      contract: selectedTitle,
     };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
@@ -97,7 +92,7 @@ export default function QueryInterface() {
         content: response.answer,
         sources: response.sources || [],
         cypher: response.cypher_query || '',
-        score: response.relevance_score === 'relevant' ? 0.95 : response.relevance_score === 'irrelevant' ? 0.3 : (typeof response.relevance_score === 'number' ? response.relevance_score : 0.5)
+        evidence: response.relevance_score === 'relevant' ? 'Passed' : response.relevance_score === 'irrelevant' ? 'Insufficient' : 'Not assessed'
       };
       
       setMessages(prev => [...prev, aiMsg]);
@@ -129,7 +124,7 @@ export default function QueryInterface() {
         {selectedContract ? (
           <div className="flex items-center gap-2 bg-slate-900/10 border border-slate-900/20 text-slate-800 text-sm px-3 py-1.5 rounded-lg font-medium">
             <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="truncate max-w-[300px]">{selectedContract}</span>
+            <span className="truncate max-w-[300px]">{selectedTitle}</span>
             <button
               onClick={handleClearContract}
               className="ml-1 p-0.5 hover:bg-slate-900/20 rounded transition-colors"
@@ -174,14 +169,15 @@ export default function QueryInterface() {
                 contracts.map(c => (
                   <button
                     key={c.contract_id}
-                    onClick={() => handleSelectContract(c.title)}
+                    onClick={() => handleSelectContract(c.contract_id)}
                     className={`w-full text-left px-4 py-3 text-sm transition-colors border-b border-black/5 last:border-0 ${
-                      selectedContract === c.title
+                      selectedContract === c.contract_id
                         ? 'bg-slate-900/10 text-slate-900'
                         : 'text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <div className="font-semibold truncate">{c.title}</div>
+                    <div className="text-xs text-slate-500 truncate">{c.parties?.join(", ")}</div>
                     <div className="text-xs text-slate-500 mt-0.5 flex gap-3">
                       {c.contract_type && <span>{c.contract_type}</span>}
                       {c.governing_law && <span>• {c.governing_law}</span>}
@@ -206,7 +202,7 @@ export default function QueryInterface() {
               <h2 className="text-2xl font-bold text-slate-900 mb-2 drop-shadow-sm">LexiGuard Query Interface</h2>
               <p className="text-slate-700 font-medium max-w-md mx-auto">
                 {selectedContract
-                  ? <>Ask questions about <span className="text-slate-900 font-bold">{selectedContract}</span></>
+                  ? <>Ask questions about <span className="text-slate-900 font-bold">{selectedTitle}</span></>
                   : 'Ask complex legal questions across your entire contract repository using GraphRAG.'
                 }
               </p>
@@ -270,7 +266,7 @@ export default function QueryInterface() {
                     {/* Metadata Badges */}
                     <div className="flex items-center space-x-3 text-xs font-semibold">
                        <span className="flex items-center text-slate-700 bg-slate-900/10 px-2 py-1 rounded border border-slate-900/20">
-                         <CheckCircle className="w-3 h-3 mr-1" /> Relevance: {(msg.score * 100).toFixed(0)}%
+                         <CheckCircle className="w-3 h-3 mr-1" /> Relevance check: {msg.evidence}
                        </span>
                     </div>
 
@@ -297,7 +293,7 @@ export default function QueryInterface() {
             <div className="bg-white/70 backdrop-blur-md border border-white/80 text-slate-600 rounded-2xl rounded-bl-none p-4 shadow-lg flex items-center space-x-3">
               <RefreshCw className="w-5 h-5 animate-spin text-slate-800" />
               <span className="text-sm font-semibold animate-pulse">
-                Searching knowledge graph{selectedContract ? ` (${selectedContract})` : ''} & generating response...
+                Searching knowledge graph{selectedContract ? ` (${selectedTitle})` : ''} & generating response...
               </span>
             </div>
           </div>
@@ -314,7 +310,7 @@ export default function QueryInterface() {
             onKeyDown={handleKeyPress}
             placeholder={
               selectedContract
-                ? `Ask about "${selectedContract}"...`
+                ? `Ask about "${selectedTitle}"...`
                 : "Ask a question about your contracts..."
             }
             className="w-full font-medium bg-white/70 text-slate-900 placeholder-slate-500 rounded-xl py-3 pl-4 pr-12 border border-white/80 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 resize-none h-14 min-h-[56px] max-h-32 shadow-inner transition-all"

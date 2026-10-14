@@ -9,11 +9,11 @@ const MetricCard = ({ title, score, icon, description }) => {
   let bg = "bg-slate-900/10";
   let border = "border-slate-900/20";
   
-  if (score < 0.6) {
+  if (score != null && score < 0.6) {
     color = "text-red-600";
     bg = "bg-red-500/15";
     border = "border-red-500/30";
-  } else if (score < 0.8) {
+  } else if (score != null && score < 0.8) {
     color = "text-slate-700";
     bg = "bg-slate-900/5";
     border = "border-amber-500/30";
@@ -26,7 +26,7 @@ const MetricCard = ({ title, score, icon, description }) => {
           {React.cloneElement(icon, { className: `w-6 h-6 ${color}` })}
         </div>
         <div className={`text-3xl font-extrabold ${color} drop-shadow-sm`}>
-          {(score * 100).toFixed(1)}%
+          {score == null ? 'Not measured' : (score * 100).toFixed(1) + '%'}
         </div>
       </div>
       <h3 className="text-lg font-bold text-slate-900 mb-1">{title}</h3>
@@ -37,6 +37,8 @@ const MetricCard = ({ title, score, icon, description }) => {
 
 export default function EvaluationDashboard() {
   const [evalData, setEvalData] = useState([]);
+  const [metadata, setMetadata] = useState(null);
+  const [availableMetrics, setAvailableMetrics] = useState(['faithfulness', 'context_precision']);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -46,6 +48,8 @@ export default function EvaluationDashboard() {
         const response = await getEvaluationResults();
         if (response && response.data) {
           setEvalData(response.data);
+          setAvailableMetrics(response.available_metrics || ['faithfulness', 'context_precision']);
+          setMetadata(response.metadata || null);
         } else {
           setEvalData([]);
         }
@@ -75,17 +79,14 @@ export default function EvaluationDashboard() {
       <div className="space-y-8">
         <div className="bg-white/40 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/60">
           <h1 className="text-2xl font-extrabold text-slate-900 mb-1 drop-shadow-sm">RAG Evaluation Metrics</h1>
-          <p className="text-slate-700 font-medium">Continuous evaluation of generation quality based on Ragas metrics.</p>
+          <p className="text-slate-700 font-medium">Saved Ragas evaluation of responses and retrieved evidence.</p>
         </div>
         <div className="text-center py-20 bg-white/40 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60">
           <Info className="w-16 h-16 text-slate-400 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-slate-900 mb-2">No Evaluation Data Found</h2>
           <p className="text-slate-600 font-medium mb-6 max-w-lg mx-auto">
-            You need to run the offline evaluation script to generate real ground-truth metrics.
+            No measured results have been saved for this deployment.
           </p>
-          <div className="bg-white/50 border border-slate-900/10 p-4 rounded-xl max-w-md mx-auto text-left font-mono text-sm text-slate-700 shadow-inner">
-            $ python scripts/05_run_evaluation.py
-          </div>
         </div>
       </div>
     );
@@ -93,7 +94,9 @@ export default function EvaluationDashboard() {
 
   const avgFaithfulness = evalData.reduce((acc, curr) => acc + curr.faithfulness, 0) / evalData.length;
   const avgPrecision = evalData.reduce((acc, curr) => acc + curr.context_precision, 0) / evalData.length;
-  const avgRelevancy = evalData.reduce((acc, curr) => acc + curr.answer_relevancy, 0) / evalData.length;
+  const hasRelevancy = availableMetrics.includes('answer_relevancy');
+  const avgRelevancy = hasRelevancy
+    ? evalData.reduce((acc, curr) => acc + curr.answer_relevancy, 0) / evalData.length : null;
 
   return (
     <div className="space-y-8 pb-8">
@@ -101,10 +104,14 @@ export default function EvaluationDashboard() {
       <div className="bg-white/40 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/60 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 mb-1 drop-shadow-sm">RAG Evaluation Metrics</h1>
-          <p className="text-slate-700 font-medium">Continuous evaluation of generation quality based on Ragas metrics.</p>
+          <p className="text-slate-700 font-medium">Saved Ragas evaluation of responses and retrieved evidence.</p>
+          {metadata && <p className="text-sm text-slate-600 mt-2">
+            {metadata.variant_label} · {metadata.cases} questions across {metadata.contracts} CUAD contracts
+            {metadata.live_aura ? ' · Live Aura retrieval' : ''}
+          </p>}
         </div>
         <div className="text-sm font-bold text-slate-800 bg-slate-900/10 px-4 py-2 rounded-xl border border-slate-900/20 flex items-center shadow-sm">
-          <CheckCircle2 className="w-4 h-4 mr-2" /> Live Data
+          <CheckCircle2 className="w-4 h-4 mr-2" /> Saved evaluation
         </div>
       </div>
 
@@ -133,7 +140,7 @@ export default function EvaluationDashboard() {
       {/* Chart Section */}
       <div className="bg-white/50 backdrop-blur-2xl rounded-2xl p-6 shadow-2xl border border-white/80">
         <div className="flex items-center justify-between mb-8 border-b border-white/50 pb-4">
-          <h2 className="text-xl font-extrabold text-slate-900 drop-shadow-sm">Performance Trends</h2>
+          <h2 className="text-xl font-extrabold text-slate-900 drop-shadow-sm">Performance Across Questions</h2>
           <span className="text-xs font-bold text-slate-700 bg-white/70 px-4 py-1.5 rounded-full border border-white/80 shadow-sm">
             Evaluated on {evalData.length} Test Questions
           </span>
@@ -212,6 +219,7 @@ export default function EvaluationDashboard() {
                 fill="url(#colorPrecision)" 
                 activeDot={{ r: 6, strokeWidth: 0, fill: '#2563eb' }}
               />
+              {hasRelevancy && (
               <Area 
                 type="monotone" 
                 dataKey="answer_relevancy" 
@@ -222,6 +230,7 @@ export default function EvaluationDashboard() {
                 fill="url(#colorRelevancy)" 
                 activeDot={{ r: 6, strokeWidth: 0, fill: '#0d9488' }}
               />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>

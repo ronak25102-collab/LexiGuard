@@ -1,5 +1,6 @@
 ﻿from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from functools import partial
 
 from lexiguard.agent.nodes import (
     generate,
@@ -85,21 +86,32 @@ def route_after_grading(state: GraphState) -> str:
     else:
         return "generate_with_disclaimer"
 
-def build_graph() -> CompiledStateGraph:
+def build_graph(retrieval_variant: str = "hybrid_crag") -> CompiledStateGraph:
     """Build and compile the LexiGuard CRAG workflow."""
+    variants = {"vector", "hybrid_no_links", "hybrid", "hybrid_crag"}
+    if retrieval_variant not in variants:
+        raise ValueError(f"Unknown retrieval variant: {retrieval_variant}")
     workflow = StateGraph(GraphState)
 
     # Add nodes
     workflow.add_node("preprocess", route_and_preprocess_query)
-    workflow.add_node("retrieve", retrieve)
-    workflow.add_node("grade_relevance", grade_relevance)
+    workflow.add_node("retrieve", partial(retrieve, use_graph=retrieval_variant != "vector",
+                                          use_links=retrieval_variant in {"hybrid", "hybrid_crag"}))
     workflow.add_node("generate", generate)
-    workflow.add_node("rewrite_query", rewrite_query)
     workflow.add_node("generate_with_disclaimer", generate_with_disclaimer)
 
     # Add edges
     workflow.add_edge(START, "preprocess")
     workflow.add_edge("preprocess", "retrieve")
+    if retrieval_variant != "hybrid_crag":
+        workflow.add_conditional_edges("retrieve", lambda state: (
+            "generate" if state.get("graph_context") else "generate_with_disclaimer"),
+            {"generate": "generate", "generate_with_disclaimer": "generate_with_disclaimer"})
+        workflow.add_edge("generate", END)
+        workflow.add_edge("generate_with_disclaimer", END)
+        return workflow.compile()
+    workflow.add_node("grade_relevance", grade_relevance)
+    workflow.add_node("rewrite_query", rewrite_query)
     workflow.add_edge("retrieve", "grade_relevance")
 
     workflow.add_conditional_edges(
@@ -129,6 +141,7 @@ def run_agent(question: str, contract_filter: str | None = None) -> dict:
 
     initial_state = {
         "question": question,
+        "retrieval_question": question,
         "contract_filter": contract_filter,
         "retry_count": 0,
         "cypher_query": "",

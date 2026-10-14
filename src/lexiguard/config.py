@@ -27,6 +27,7 @@ class LLMProvider(StrEnum):
     OPENAI = "openai"
     GOOGLE = "google"
     NVIDIA = "nvidia"
+    CODECRAFT = "codecraft"
 
 
 class Settings(BaseSettings):
@@ -41,6 +42,12 @@ class Settings(BaseSettings):
 
     # --- LLM Provider ---
     llm_provider: LLMProvider = LLMProvider.OPENAI
+    embedding_provider: LLMProvider | None = None
+
+    # OpenAI-compatible CodeCraft gateway; model identifiers are gateway-reported.
+    codecraft_api_key: str | None = None
+    codecraft_model: str = "gpt-5.6-luna"
+    codecraft_base_url: str = "https://codecraftapi.com/v1"
 
     # OpenAI
     openai_api_key: str | None = None
@@ -52,7 +59,7 @@ class Settings(BaseSettings):
 
     # NVIDIA NIM (OpenAI-compatible hosted API)
     nvidia_api_key: str | None = None
-    nvidia_model: str = "mistralai/mistral-nemotron"
+    nvidia_model: str = "nvidia/nemotron-3-super-120b-a12b"
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
     nvidia_thinking: bool = False
     nvidia_reasoning_effort: str = "low"
@@ -64,6 +71,8 @@ class Settings(BaseSettings):
     neo4j_uri: str = Field(default="bolt://localhost:7687")
     neo4j_username: str = Field(default="neo4j")
     neo4j_password: str = Field(default="password")
+    neo4j_ca_file: Path | None = None
+    neo4j_connection_timeout: float = 15.0
 
     # --- LlamaCloud (optional) ---
     llama_cloud_api_key: str | None = None
@@ -81,7 +90,7 @@ class Settings(BaseSettings):
     max_concurrent_uploads: int = 2  # Max simultaneous processing
     enable_rate_limiting: bool = True  # Enable rate limiting
 
-    @field_validator("llm_provider", mode="before")
+    @field_validator("llm_provider", "embedding_provider", mode="before")
     @classmethod
     def normalize_provider(cls, v: str) -> str:
         if isinstance(v, str):
@@ -103,6 +112,10 @@ class Settings(BaseSettings):
             if not self.nvidia_api_key:
                 raise ValueError("NVIDIA_API_KEY is required when LLM_PROVIDER=nvidia")
             return self.nvidia_api_key
+        elif self.llm_provider == LLMProvider.CODECRAFT:
+            if not self.codecraft_api_key:
+                raise ValueError("CODECRAFT_API_KEY is required when LLM_PROVIDER=codecraft")
+            return self.codecraft_api_key
         raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
 
     @property
@@ -114,7 +127,17 @@ class Settings(BaseSettings):
             return self.google_model
         if self.llm_provider == LLMProvider.NVIDIA:
             return self.nvidia_model
+        if self.llm_provider == LLMProvider.CODECRAFT:
+            return self.codecraft_model
         raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
+
+    @property
+    def effective_embedding_provider(self) -> LLMProvider:
+        """Allow generation failover without silently changing the vector space."""
+        provider = self.embedding_provider or self.llm_provider
+        if provider == LLMProvider.CODECRAFT:
+            raise ValueError("Set EMBEDDING_PROVIDER explicitly when using CodeCraft")
+        return provider
 
     def ensure_data_dirs(self) -> None:
         """Create data directories if they don't exist."""

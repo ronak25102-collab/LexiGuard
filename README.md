@@ -1,121 +1,129 @@
-# LexiGuard: Enterprise Legal GraphRAG and Compliance Agent
+# LexiGuard
 
-![LexiGuard Live](https://img.shields.io/badge/Live_Demo-lexiguard--ui.onrender.com-brightgreen?style=for-the-badge&logo=render)
+LexiGuard answers questions about commercial contracts using Neo4j, ChromaDB,
+LangGraph, FastAPI, and a React interface. It retrieves source evidence, follows
+cross-clause references and overrides, and can rewrite a query when a relevance
+check finds insufficient evidence. Answers include excerpts and section citations.
 
-**Live Demo:** [https://lexiguard-ui.onrender.com](https://lexiguard-ui.onrender.com)
+The evaluation scores describe particular datasets and configurations; they do
+not establish legal reliability or eliminate hallucinations. See the
+[live ablation report](docs/live_ablation.md) for the current experiment and its
+limitations. Earlier offline pilots are documented in
+[focused_ablation.md](docs/focused_ablation.md) and
+[accuracy_improvements.md](docs/accuracy_improvements.md).
 
-## Overview
-LexiGuard is an enterprise-grade Legal GraphRAG platform designed to resolve multi-hop, cross-clause dependencies across commercial contracts. By combining a **deterministic Neo4j Knowledge Graph** with the **semantic flexibility of a ChromaDB Vector Database**, LexiGuard enables a powerful Hybrid Retrieval system. This dual-path architecture powers a high-fidelity, self-reflecting Corrective RAG (CRAG) agent that eliminates ungrounded legal hallucinations without losing context to fuzzy synonyms.
+The [one-page report](output/pdf/LexiGuard_live_ablation_brief.pdf) summarizes
+the measured results. Download the
+[reproducibility package](evaluation_results/LexiGuard_live_evaluation_package.zip)
+for frozen questions, source snapshots, per-query scores and executed query traces.
+The package includes both live runs and an integrity manifest, with credentials
+and correspondence excluded.
 
-## Key Capabilities
-* **Dual-Path Ingestion:** Automated pipeline converting unstructured legal PDFs into structured Markdown. The pipeline then splits into two paths:
-  * **Path A (Structured):** LLM-driven entity extraction mapped directly to Neo4j nodes (Contract, Party, Clause) and relationships (MODIFIES, SUPERSEDES, EXCLUDES).
-  * **Path B (Semantic):** Text chunking and embedding storage in ChromaDB to capture underlying legal meaning and fuzzy phrasing.
-* **LLM-Driven Entity Resolution:** A specialized Deduplication Engine intercepts extracted entities and merges contract aliases (e.g., "Apex", "The Client", "Apex Enterprise Solutions") into unified primary Neo4j nodes to prevent graph fragmentation.
-* **Hybrid Corrective RAG (CRAG):** Implemented via LangGraph, this architecture queries both Neo4j (via generated Cypher) and ChromaDB simultaneously. It evaluates the combined relevance of retrieved clauses, reformulates queries upon failure, and synthesizes answers exclusively from grounded legal text.
-* **Zero-Latency LLM Failover:** Engineered with strict rate-limit bypass mechanisms. If the primary LLM (e.g., Gemini 3.6 Flash) encounters a 429 Too Many Requests error, the pipeline instantly fails over to a high-throughput fallback model (Gemini 3.5 Flash Lite) without dropping the client request.
-* **Interactive Web Interface:** A modern, responsive React application featuring fluid route transitions (Framer Motion), real-time graph visualization (ForceGraph2D), an interactive chat interface, and a dynamic upload dashboard.
-* **Evaluation Suite:** Built-in Ragas integration to continuously measure pipeline accuracy across Faithfulness, Context Precision, and Answer Relevancy.
+## How it works
 
-## System Architecture
+1. Parse a PDF to Markdown and extract contract metadata with an LLM.
+2. Supplement extracted clauses with verbatim numbered source sections,
+   lettered subclauses, and exhibits. Resolve explicit section references.
+3. Store contract, party, clause, and location nodes in Neo4j and text chunks in
+   a Chroma collection for the configured embedding model.
+4. Resolve contract scope, use parameterized Cypher to retrieve clauses and
+   neighboring REFERENCES, MODIFIES, SUPERSEDES, and EXCLUDES relationships,
+   and combine that evidence with scoped semantic retrieval.
+5. Rank evidence within a context budget, retaining semantic background and
+   linked exceptions. CRAG can perform a bounded number of retrieval rewrites.
+6. Generate a grounded answer or report insufficient evidence. Upstream failures
+   produce errors; the API does not substitute fabricated sample answers.
 
-```text
-[ Legal PDF ] -> [ pymupdf4llm ] -> [ Markdown Text ]
-                                          |
-                   ------------------------------------------------
-                  |                                                |
-      [ LLM Entity Extraction ]                         [ Semantic Chunking ]
-                  |                                                |
-    [ LLM Entity Resolution ]                                      |
-         (Deduplication)                                           |
-                  |                                                |
-       [ Neo4j Graph Database ]                         [ ChromaDB Vector Store ]
-                  |                                                |
-                  --------------------------------------------------
-                                          |
-[ User Query ] ------------------> [ Hybrid Retrieval ]
-                                          |
-                             [ Relevance Grading (CRAG) ]
-                                /                  \
-                          [ PASS ]               [ FAIL ]
-                             |                      |
-                   [ Synthesize Answer ]     [ Rewrite Query ]
-```
+Typed overrides depend on extraction. A reference does not automatically prove
+an override relationship. The source parser supplements explicit references
+without inventing MODIFIES or SUPERSEDES edges.
 
-## Knowledge Graph Schema
+## Setup
 
-The Neo4j ontology explicitly models commercial contracts:
+Requires Python 3.11+, uv, a recent Node.js version, and a Neo4j instance.
+The live evaluation uses AuraDB over verified TLS; a local Neo4j server is not
+required. API credentials belong in `.env`, which is ignored by Git.
 
-* **Nodes:** (Contract), (Party), (Clause), (Location)
-* **Relationships:**
-  * (Contract)-[:HAS_PARTY]->(Party)
-  * (Contract)-[:CONTAINS_CLAUSE]->(Clause)
-  * (Clause)-[:INCORPORATED_IN]->(Location)
-  * (Clause)-[:MODIFIES]->(Clause)
-  * (Clause)-[:SUPERSEDES]->(Clause)
-  * (Clause)-[:EXCLUDES]->(Clause)
-
-## Cloud Deployment Architecture
-LexiGuard is fully containerized and configured for CI/CD deployment on **Render** via Infrastructure as Code (
-ender.yaml).
-* **Backend:** Dockerized FastAPI service leveraging the uv package manager for highly optimized, cached build layers. Exposed via port 10000.
-* **Frontend:** React + Vite Single Page Application deployed as a highly cached Static Site with custom Catch-All rewrite rules for client-side routing.
-
-## Prerequisites
-
-* Python 3.12+
-* Node.js 18+
-* Neo4j Aura Account (Free Tier)
-* LLM API Keys (Google Gemini, OpenAI, or NVIDIA NIM)
-
-## Local Setup & Quick Start
-
-### 1. Repository Setup
-
-`ash
-git clone https://github.com/yourusername/LexiGuard.git
-cd LexiGuard
-
-# Install backend dependencies (managed via uv)
-uv sync
-
-# Frontend Setup
+```bash
+uv sync --extra dev
+# Copy .env.example to .env and configure credentials.
 cd frontend
 npm install
-cd ..
+```
 
-# Environment Configuration
-cp .env.example .env
-# Edit .env with your Neo4j credentials and LLM API keys
-`
+Generation supports OpenAI, Google Gemini, NVIDIA NIM, and the OpenAI-compatible
+CodeCraft gateway. Gateway model names are gateway-reported identities.
+Configure EMBEDDING_PROVIDER separately when changing the generator so the
+existing vector space remains compatible. Reduced-dimensional Gemini embeddings
+use 768 dimensions and unit normalization for documents and queries.
 
-### 2. Running the Application Locally
+Example configuration (supply your own keys):
 
-LexiGuard operates with a decoupled frontend and backend. Both must be running simultaneously.
+```dotenv
+LLM_PROVIDER=codecraft
+CODECRAFT_MODEL=gpt-5.6-luna
+CODECRAFT_BASE_URL=https://codecraftapi.com/v1
+EMBEDDING_PROVIDER=google
+NEO4J_URI=neo4j+s://your-instance.databases.neo4j.io
+NEO4J_USERNAME=your-instance-username
+```
 
-`ash
-# Terminal 1: Initialize FastAPI Backend
-uv run uvicorn src.lexiguard.api.main:app --reload --port 8001
+Start the API from the repository root and the UI from `frontend/`:
 
-# Terminal 2: Initialize React Frontend
+```bash
+uv run uvicorn lexiguard.api.main:app --reload --port 8001
+# In a second terminal:
 cd frontend
 npm run dev
-`
+```
 
-Navigate to http://localhost:5173 to access the LexiGuard dashboard.
+The UI development server uses port 3000 and proxies `/api` to the backend.
+For deployment, set VITE_API_URL and configure the backend environment separately.
+The Dockerfile and render.yaml describe Render deployment; changing this
+checkout's `.env` does not update a hosted service.
 
-## Technology Stack
+## Data and indexing
 
-* **Data Parsing:** pymupdf4llm
-* **LLM Extraction & Embedding:** Gemini / OpenAI / NVIDIA, Pydantic
-* **Graph Database:** Neo4j (Cypher)
-* **Vector Database:** ChromaDB (Semantic Retrieval)
-* **Agentic Orchestration:** LangGraph (Hybrid Corrective RAG)
-* **Backend Application:** FastAPI, Docker, uv
-* **Frontend Application:** React, Vite, Tailwind CSS, Framer Motion, ForceGraph2D
+Upload a PDF through the UI or use the numbered scripts to download, parse,
+extract, and build a graph. `scripts/09_reindex_vectors.py --all` indexes saved
+Markdown. `scripts/10_restore_cloud.py` restores saved source records to the
+configured Aura instance, without starting a local Neo4j server.
+
+The saved corpus includes public CUAD contracts and repeated uploads of a
+synthetic demonstration contract. Repeated uploads are distinct source records,
+not independent evaluation examples. Raw PDFs, parsed Markdown, vector indexes,
+and evaluation outputs are ignored by Git and must be obtained or included in
+an independent reproduction package.
+
+## Evaluation and checks
+
+```bash
+uv run pytest -q
+cd frontend
+npm run build
+```
+
+The live experiment runs production LangGraph retrieval nodes in four modes:
+vector-only; hybrid without graph links; hybrid with graph links; and hybrid plus
+CRAG. It uses frozen official CUAD questions and answer spans, a pinned generator
+and independent judge, fixed embeddings and evidence budgets, and actual cloud
+queries. References are supplied only to the evaluator. No offline graph replay
+or silent model fallback is allowed in that benchmark.
+
+```bash
+# Freeze a new experiment only before inspecting its outcomes.
+uv run python scripts/11_live_ablation.py freeze
+uv run python scripts/11_live_ablation.py generate
+uv run python scripts/11_live_ablation.py score
+uv run python scripts/11_live_ablation.py report
+uv run python scripts/12_source_audit.py
+```
+
+Ragas measures faithfulness and context precision. The live suite also records
+factual F1 and a supplementary literal reference-coverage audit. Faithfulness can
+be high when retrieved evidence is incomplete; LLM judges can mis-score even exact
+source matches. Inspect per-query outputs and traces alongside aggregate scores.
 
 ## License
 
-This project is licensed under the MIT License. See the \LICENSE\ file for details.
-
-
+MIT. See [LICENSE](LICENSE).

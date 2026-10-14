@@ -119,3 +119,13 @@ class TestGraphBuilder:
         builder = GraphBuilder(mock_client)
         stats = builder.build_contract_graph(empty)
         assert isinstance(stats, dict)
+
+    def test_clause_batch_preserves_unique_ids_and_verbatim_text(self, mock_client, sample_contract):
+        builder = GraphBuilder(mock_client)
+        builder._create_clause_nodes(sample_contract)
+        assert mock_client.run_write.call_count == 1
+        query, parameters = mock_client.run_write.call_args.args
+        assert "UNWIND $clauses" in query
+        rows = parameters["clauses"]
+        assert len({r["id"] for r in rows}) == len(sample_contract.clauses)
+        assert [r["text"] for r in rows] == [c.text for c in sample_contract.clauses]

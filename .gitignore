@@ -1,6 +1,8 @@
 # Environment
 .env
 .env.local
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -18,6 +20,7 @@ env/
 data/raw/
 data/parsed/
 data/cuad_qa/
+data/chroma_db/
 
 # IDE
 .vscode/
@@ -33,9 +36,12 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+.pytest-tmp/
 
 # Evaluation outputs
 evaluation_results/
+output/
+tmp/
 
 # Node (frontend)
 frontend/node_modules/

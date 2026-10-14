@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, FileText, Users, FileSignature, Share2, Sparkles, MessageSquare } from 'lucide-react';
 import { getContracts, getGraphStats } from '../api/client';
@@ -29,18 +29,8 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  // Deduplicate contracts by title — keep the one with the most clauses
-  const uniqueContracts = useMemo(() => {
-    const seen = new Map();
-    contracts.forEach(contract => {
-      const title = contract.title;
-      const existing = seen.get(title);
-      if (!existing || (contract.clause_count || 0) > (existing.clause_count || 0)) {
-        seen.set(title, contract);
-      }
-    });
-    return Array.from(seen.values());
-  }, [contracts]);
+  // Distinct agreements can share a title; preserve their database IDs.
+  const displayContracts = contracts;
 
   if (loading) return <div className="flex justify-center items-center h-64"><LoadingSpinner text="Loading Dashboard..." /></div>;
 
@@ -62,7 +52,7 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard icon={<FileText className="w-6 h-6 text-slate-800" />} label="Unique Contracts" value={uniqueContracts.length} />
+        <StatsCard icon={<FileText className="w-6 h-6 text-slate-800" />} label="Contracts" value={displayContracts.length} />
         <StatsCard icon={<Users className="w-6 h-6 text-slate-800" />} label="Total Parties" value={stats.total_parties || 0} />
         <StatsCard icon={<FileSignature className="w-6 h-6 text-slate-800" />} label="Total Clauses" value={stats.total_clauses || 0} />
         <StatsCard icon={<Share2 className="w-6 h-6 text-slate-800" />} label="Total Relationships" value={stats.total_relationships || 0} />
@@ -77,11 +67,11 @@ export default function Dashboard() {
           </div>
           <Link to="/query" className="section-action">Explore knowledge graph <ArrowRight className="w-4 h-4" /></Link>
         </div>
-        {uniqueContracts.length === 0 ? (
+        {displayContracts.length === 0 ? (
           <div className="empty-state">No contracts have been added to the repository yet.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {uniqueContracts.map(contract => (
+            {displayContracts.map(contract => (
               <div key={contract.contract_id} className="contract-card block h-full">
                 <div className="h-full flex flex-col">
                   <span className="contract-eyebrow">{contract.contract_type || 'Contract'}</span>
@@ -96,7 +86,7 @@ export default function Dashboard() {
                     <span>{contract.clause_count || 0} Clauses</span>
                     <div className="flex items-center gap-4">
                       <Link
-                        to={`/query?contractTitle=${encodeURIComponent(contract.title)}`}
+                        to={`/query?contractId=${encodeURIComponent(contract.contract_id)}`}
                         className="contract-link !text-slate-900 font-semibold hover:!text-slate-700 transition-colors"
                       >
                         <MessageSquare className="w-3.5 h-3.5" /> Chat

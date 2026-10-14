@@ -8,7 +8,6 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-import tempfile
 import uuid
 import json
 from datetime import datetime
@@ -111,6 +110,8 @@ def _provider_display_name() -> str:
         return "NVIDIA NIM"
     if provider == LLMProvider.GOOGLE:
         return "Google Gemini"
+    if provider == LLMProvider.CODECRAFT:
+        return "CodeCraft"
     return "OpenAI"
 
 
@@ -193,8 +194,11 @@ def process_query(request: QueryRequest):
                 num_key = next((k for k in doc_text.keys() if "number" in k.lower() or "id" in k.lower()), None)
                 text_key = next((k for k in doc_text.keys() if "text" in k.lower() or "content" in k.lower() or "context" in k.lower()), None)
                 
-                clause_num = str(doc_text.get(num_key, "N/A")) if num_key else "N/A"
-                clause_text = str(doc_text.get(text_key, " | ".join(f"{k}: {v}" for k, v in doc_text.items()))) if text_key else " | ".join(f"{k}: {v}" for k, v in doc_text.items())
+                clause_num = str(doc_text.get("clause_number") or doc_text.get("section")
+                                 or (doc_text.get(num_key) if num_key else None) or "N/A")
+                clause_text = str(doc_text.get("clause_text") or doc_text.get("text")
+                                  or doc_text.get("content") or (doc_text.get(text_key)
+                                  if text_key else None) or str(doc_text))
                 
                 sources.append(SourceDocument(
                     clause_number=clause_num,
@@ -216,24 +220,9 @@ def process_query(request: QueryRequest):
         )
     except Exception as e:
         logger.exception(f"Error processing query: {repr(e)}")
-        if _is_rate_limited(e) or str(e) == "Error code: 500" or "500" in str(e):
-            logger.warning("LLM rate limit reached. Returning mock data.")
-            return QueryResponse(
-                answer=(
-                    "Due to LLM API rate limits/quota exhaustion, this is a mock answer. "
-                    "The governing law of the contract is typically specified in the "
-                    "'Governing Law' or 'Jurisdiction' clause."
-                ),
-                sources=[
-                    SourceDocument(
-                        clause_number="12.1",
-                        clause_text="This Agreement shall be governed by the laws of the State of Delaware.",
-                        contract_title="Mock Contract",
-                    )
-                ],
-                relevance_score="relevant",
-                cypher_query="MATCH (c:Contract) RETURN c LIMIT 1"
-            )
+        if _is_rate_limited(e) or any(code in str(e) for code in ("500", "502", "503")):
+            raise HTTPException(status_code=503, detail=
+                                f"{_provider_display_name()} is temporarily unavailable. Please retry.")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -249,8 +238,19 @@ def get_evaluation_results():
         import json
         with open(results_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
+
+        if isinstance(data, dict) and isinstance(data.get("data"), list):
+            return {"data": data["data"],
+                    "available_metrics": data.get("available_metrics", []),
+                    "metadata": data.get("metadata", {})}
+
+        if isinstance(data, list) and data and all(
+            str(row.get("full_question", "")).lower().startswith("sample question")
+            for row in data
+        ):
+            return {"data": None, "message": "The saved file contains example scores, not a measured evaluation."}
             
-        return {"data": data}
+        return {"data": data, "available_metrics": ["faithfulness", "context_precision"]}
     except Exception as e:
         logger.exception("Error reading evaluation results")
         raise HTTPException(status_code=500, detail=str(e))
@@ -306,8 +306,8 @@ def get_contract(contract_id: str):
 
         # Get parties
         parties_query = """
-        MATCH (c:Contract {id: $contract_id})-[:HAS_PARTY]->(p:Party)
-        RETURN p.name AS name, p.role AS role, p.jurisdiction AS jurisdiction
+        MATCH (c:Contract {id: $contract_id})-[r:HAS_PARTY]->(p:Party)
+        RETURN p.name AS name, r.role AS role, p.jurisdiction AS jurisdiction
         """
         parties = client.run_query(parties_query, {"contract_id": contract_id})
 
@@ -398,8 +398,6 @@ async def process_uploaded_contract(file_path: Path, contract_id: str):
     
     Uses semaphore to limit concurrent processing and prevent API rate limits.
     """
-    import asyncio
-    
     # Wait for semaphore (limit concurrent uploads)
     async with _upload_semaphore:
         logger.info(f"Acquired processing slot for {contract_id}")

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, MapPin, ShieldAlert, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
@@ -25,6 +25,7 @@ export default function ContractDetail() {
           ...data.contract,
           parties: data.parties ? data.parties.map(p => p.name) : [],
           clauses: data.clauses,
+          crossReferences: data.cross_references || [],
           governingLaw: data.contract.governing_law,
           effectiveDate: data.contract.effective_date,
         };
@@ -50,7 +51,7 @@ export default function ContractDetail() {
     setExpandedClauses(prev => ({ ...prev, [idx]: !prev[idx] }));
   };
 
-  // Build mock graph data based on contract details for visualization
+  // Build the graph from actual API cross-references.
   const getGraphData = () => {
     if (!contract) return { nodes: [], links: [] };
 
@@ -84,21 +85,27 @@ export default function ContractDetail() {
         nodes.push({ id: clauseId, name: clause.title || `Clause ${i+1}`, group: 'Clause', color: '#0d9488', val: 8 });
         links.push({ source: contractNodeId, target: clauseId, name: 'CONTAINS_CLAUSE', color: '#cbd5e1' });
         
-        // Mock cross-references
-        if (i > 0 && Math.random() > 0.8) {
-           links.push({ source: clauseId, target: `Clause_${i-1}`, name: 'REFERENCES', color: '#94a3b8', dashed: true });
-        }
       });
     }
 
+    const clauseIds = new Map((contract.clauses || []).map((clause, i) => [clause.number, 'Clause_' + i]));
+    (contract.crossReferences || []).forEach(ref => {
+      const source = clauseIds.get(ref.source);
+      const target = clauseIds.get(ref.target);
+      if (source && target) {
+        links.push({ source, target, name: ref.relationship, color: '#94a3b8', dashed: true });
+      }
+    });
+
     return { nodes, links };
   };
+
+  const graphData = useMemo(() => getGraphData(), [contract]);
 
   if (loading) return <div className="h-96 flex items-center justify-center"><LoadingSpinner text="Loading Contract..." /></div>;
   if (error) return <div className="text-red-500 text-center p-8 bg-white/40 backdrop-blur-xl rounded-xl">{error}</div>;
   if (!contract) return null;
 
-  const graphData = getGraphData();
 
   return (
     <div className="space-y-6 flex flex-col h-[calc(100vh-8rem)]">
