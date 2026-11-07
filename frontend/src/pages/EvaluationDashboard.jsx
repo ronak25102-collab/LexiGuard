@@ -1,39 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Target, CheckCircle2, ShieldCheck, Info } from 'lucide-react';
 import { getEvaluationResults } from '../api/client';
 import LoadingSpinner from '../components/LoadingSpinner';
+import PageHeader from '../components/PageHeader';
+import Reveal from '../components/Reveal';
+import Button from '../components/Button';
+import { gsap, EASE, prefersReducedMotion } from '../lib/motion';
 
-const MetricCard = ({ title, score, icon, description }) => {
-  let color = "text-slate-800";
-  let bg = "bg-slate-900/10";
-  let border = "border-slate-900/20";
-  
-  if (score != null && score < 0.6) {
-    color = "text-red-600";
-    bg = "bg-red-500/15";
-    border = "border-red-500/30";
-  } else if (score != null && score < 0.8) {
-    color = "text-slate-700";
-    bg = "bg-slate-900/5";
-    border = "border-amber-500/30";
-  }
+const MINT = '#b1f9e1';
+const MUTED = 'rgba(177,249,225,0.6)';
+const SERIES = {
+  faithfulness: { name: 'Faithfulness', color: MINT },
+  context_precision: { name: 'Context precision', color: '#ffffff' },
+  answer_relevancy: { name: 'Answer relevancy', color: '#4fd1a9' },
+};
 
+function Metric({ index, title, score, color, description }) {
+  const barRef = useRef(null);
+  useLayoutEffect(() => {
+    if (score == null || !barRef.current || prefersReducedMotion()) return undefined;
+    const ctx = gsap.context(() => {
+      gsap.from(barRef.current, {
+        scaleX: 0, duration: 1.6, ease: EASE,
+        scrollTrigger: { trigger: barRef.current, start: 'top 95%', once: true },
+      });
+    });
+    return () => ctx.revert();
+  }, [score]);
+
+  const tone = score == null ? '' : score < 0.6 ? 'Needs work' : score < 0.8 ? 'Fair' : 'Strong';
   return (
-    <div className={`rounded-2xl p-6 border bg-white/40 backdrop-blur-xl shadow-lg border-white/60 transition-transform hover:-translate-y-1`}>
-      <div className="flex justify-between items-start mb-4">
-        <div className={`p-3 rounded-xl border ${bg} ${border}`}>
-          {React.cloneElement(icon, { className: `w-6 h-6 ${color}` })}
-        </div>
-        <div className={`text-3xl font-extrabold ${color} drop-shadow-sm`}>
-          {score == null ? 'Not measured' : (score * 100).toFixed(1) + '%'}
-        </div>
+    <div className="metric">
+      <div className="metric__label"><span>{title}</span><span>0{index}</span></div>
+      <div>
+        <div className="metric__value">{score == null ? '—' : `${(score * 100).toFixed(1)}%`}</div>
+        <div className="mt-3 text-[0.875rem] text-[var(--muted)]">{score == null ? 'Not measured in this run' : tone}</div>
       </div>
-      <h3 className="text-lg font-bold text-slate-900 mb-1">{title}</h3>
-      <p className="text-sm font-medium text-slate-600">{description}</p>
+      <div>
+        <div className="metric__bar" style={{ '--metric-color': color }}>
+          <span ref={barRef} style={{ transform: `scaleX(${score ?? 0})` }} />
+        </div>
+        <p className="text-body mt-4 max-w-[34ch]">{description}</p>
+      </div>
     </div>
   );
-};
+}
 
 export default function EvaluationDashboard() {
   const [evalData, setEvalData] = useState([]);
@@ -53,8 +64,8 @@ export default function EvaluationDashboard() {
         } else {
           setEvalData([]);
         }
-      } catch (err) {
-        setError("Failed to load evaluation data.");
+      } catch {
+        setError('Failed to load evaluation data.');
       } finally {
         setLoading(false);
       }
@@ -62,179 +73,124 @@ export default function EvaluationDashboard() {
     fetchResults();
   }, []);
 
+  const header = (
+    <PageHeader
+      index="03"
+      eyebrow="Evaluation"
+      title="Measured, not promised."
+      description="Ragas scores for saved runs: how faithful answers are to the retrieved clauses, and how precisely the right evidence is ranked."
+    >
+      {metadata && (
+        <p className="mt-6 text-[0.875rem] text-[var(--muted)]">
+          {metadata.variant_label} · {metadata.cases} questions across {metadata.contracts} CUAD contracts
+          {metadata.live_aura ? ' · Live Aura retrieval' : ''}
+        </p>
+      )}
+    </PageHeader>
+  );
+
   if (loading) {
-    return <div className="flex justify-center items-center h-64"><LoadingSpinner text="Loading Evaluation Data..." /></div>;
+    return <div className="page grid place-items-center"><LoadingSpinner text="Loading evaluation data…" /></div>;
   }
 
-  if (error) {
+  if (error || evalData.length === 0) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-xl text-center shadow-sm font-medium">
-        {error}
+      <div className="page">
+        {header}
+        <section className="container-x pb-24 pt-8">
+          <Reveal self className="panel flex flex-col items-start gap-6 p-8">
+            <h2 className="display-m">{error ? 'Evaluation data could not be loaded.' : 'No evaluation data yet.'}</h2>
+            <p className="text-body max-w-xl">
+              {error || 'No measured results have been saved for this deployment. Run the evaluation script to populate this page.'}
+            </p>
+            <Button to="/query" variant="outline">Try a question instead</Button>
+          </Reveal>
+        </section>
       </div>
     );
   }
 
-  if (evalData.length === 0) {
-    return (
-      <div className="space-y-8">
-        <div className="bg-white/40 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/60">
-          <h1 className="text-2xl font-extrabold text-slate-900 mb-1 drop-shadow-sm">RAG Evaluation Metrics</h1>
-          <p className="text-slate-700 font-medium">Saved Ragas evaluation of responses and retrieved evidence.</p>
-        </div>
-        <div className="text-center py-20 bg-white/40 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60">
-          <Info className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-900 mb-2">No Evaluation Data Found</h2>
-          <p className="text-slate-600 font-medium mb-6 max-w-lg mx-auto">
-            No measured results have been saved for this deployment.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const avgFaithfulness = evalData.reduce((acc, curr) => acc + curr.faithfulness, 0) / evalData.length;
-  const avgPrecision = evalData.reduce((acc, curr) => acc + curr.context_precision, 0) / evalData.length;
+  const avg = key => evalData.reduce((acc, row) => acc + (row[key] ?? 0), 0) / evalData.length;
   const hasRelevancy = availableMetrics.includes('answer_relevancy');
-  const avgRelevancy = hasRelevancy
-    ? evalData.reduce((acc, curr) => acc + curr.answer_relevancy, 0) / evalData.length : null;
+  const axisTick = { fontSize: 12, fill: MUTED, fontFamily: 'Satoshi, sans-serif' };
 
   return (
-    <div className="space-y-8 pb-8">
-      
-      <div className="bg-white/40 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/60 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 mb-1 drop-shadow-sm">RAG Evaluation Metrics</h1>
-          <p className="text-slate-700 font-medium">Saved Ragas evaluation of responses and retrieved evidence.</p>
-          {metadata && <p className="text-sm text-slate-600 mt-2">
-            {metadata.variant_label} · {metadata.cases} questions across {metadata.contracts} CUAD contracts
-            {metadata.live_aura ? ' · Live Aura retrieval' : ''}
-          </p>}
-        </div>
-        <div className="text-sm font-bold text-slate-800 bg-slate-900/10 px-4 py-2 rounded-xl border border-slate-900/20 flex items-center shadow-sm">
-          <CheckCircle2 className="w-4 h-4 mr-2" /> Saved evaluation
-        </div>
-      </div>
+    <div className="page">
+      {header}
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MetricCard 
-          title="Faithfulness" 
-          score={avgFaithfulness} 
-          icon={<ShieldCheck />}
-          description="Measures factual consistency of the generated answer against the retrieved context."
-        />
-        <MetricCard 
-          title="Context Precision" 
-          score={avgPrecision} 
-          icon={<Target />}
-          description="Evaluates whether all ground-truth relevant items present in the contexts are ranked high."
-        />
-        <MetricCard 
-          title="Answer Relevancy" 
-          score={avgRelevancy} 
-          icon={<CheckCircle2 />}
-          description="Assesses how pertinent the generated answer is to the given prompt."
-        />
-      </div>
+      <section className="container-x pb-16 pt-4">
+        <Reveal className="metrics">
+          <Metric index={1} title="Faithfulness" score={avg('faithfulness')} color={SERIES.faithfulness.color}
+            description="Factual consistency of each answer against the context it retrieved." />
+          <Metric index={2} title="Context precision" score={avg('context_precision')} color={SERIES.context_precision.color}
+            description="Whether the relevant ground-truth evidence is ranked near the top." />
+          <Metric index={3} title="Answer relevancy" score={hasRelevancy ? avg('answer_relevancy') : null} color={SERIES.answer_relevancy.color}
+            description="How directly each answer addresses the question asked." />
+        </Reveal>
+      </section>
 
-      {/* Chart Section */}
-      <div className="bg-white/50 backdrop-blur-2xl rounded-2xl p-6 shadow-2xl border border-white/80">
-        <div className="flex items-center justify-between mb-8 border-b border-white/50 pb-4">
-          <h2 className="text-xl font-extrabold text-slate-900 drop-shadow-sm">Performance Across Questions</h2>
-          <span className="text-xs font-bold text-slate-700 bg-white/70 px-4 py-1.5 rounded-full border border-white/80 shadow-sm">
-            Evaluated on {evalData.length} Test Questions
-          </span>
-        </div>
-        
-        <div className="h-[450px] w-full mt-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={evalData}
-              margin={{ top: 10, right: 30, left: 0, bottom: 20 }}
-            >
-              <defs>
-                <linearGradient id="colorFaithfulness" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#334155" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#334155" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorPrecision" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorRelevancy" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0d9488" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#0d9488" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" vertical={false} />
-              <XAxis 
-                dataKey="question" 
-                stroke="#64748b" 
-                tickFormatter={(val) => `Q${val.split('-')[1]}`} 
-                tick={{ fontSize: 12, fill: '#64748b' }} 
-                tickMargin={12}
-              />
-              <YAxis 
-                stroke="#64748b" 
-                tickFormatter={(val) => `${val * 100}%`}
-                domain={[0, 1]} 
-                tick={{ fontSize: 12, fill: '#64748b' }}
-                tickMargin={12}
-                axisLine={false}
-                tickLine={false}
-              />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(12px)', borderColor: '#e2e8f0', borderRadius: '12px', color: '#0f172a', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
-                  itemStyle={{ color: '#0f172a', fontWeight: '700', padding: '6px 0' }}
-                  labelStyle={{ color: '#475569', fontWeight: '600', marginBottom: '8px', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px' }}
-                  formatter={(value) => [(value * 100).toFixed(1) + '%']}
-                  labelFormatter={(label) => {
-                    const data = evalData.find(d => d.question === label);
-                    return data ? data.full_question : label;
-                  }}
+      <section className="container-x pb-24">
+        <Reveal self className="panel">
+          <div className="panel__head">
+            <h2 className="panel__title">Performance across questions</h2>
+            <span className="chip">{evalData.length} test questions</span>
+          </div>
+          <div className="h-[28rem] w-full p-4 pt-6">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={evalData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                <defs>
+                  {Object.entries(SERIES).map(([key, { color }]) => (
+                    <linearGradient key={key} id={`fill-${key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={color} stopOpacity={0.18} />
+                      <stop offset="95%" stopColor={color} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <CartesianGrid stroke="rgba(177,249,225,0.12)" vertical={false} />
+                <XAxis
+                  dataKey="question"
+                  tickFormatter={val => (String(val).includes('-') ? `Q${String(val).split('-')[1]}` : val)}
+                  tick={axisTick}
+                  tickMargin={12}
+                  axisLine={false}
+                  tickLine={false}
                 />
-              <Legend 
-                verticalAlign="top" 
-                height={36} 
-                iconType="circle"
-                wrapperStyle={{ paddingBottom: '20px', color: '#334155', fontWeight: '600' }}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="faithfulness" 
-                name="Faithfulness" 
-                stroke="#334155" 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill="url(#colorFaithfulness)" 
-                activeDot={{ r: 6, strokeWidth: 0, fill: '#334155' }}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="context_precision" 
-                name="Context Precision" 
-                stroke="#2563eb" 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill="url(#colorPrecision)" 
-                activeDot={{ r: 6, strokeWidth: 0, fill: '#2563eb' }}
-              />
-              {hasRelevancy && (
-              <Area 
-                type="monotone" 
-                dataKey="answer_relevancy" 
-                name="Answer Relevancy" 
-                stroke="#0d9488" 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill="url(#colorRelevancy)" 
-                activeDot={{ r: 6, strokeWidth: 0, fill: '#0d9488' }}
-              />
-              )}
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+                <YAxis
+                  tickFormatter={val => `${Math.round(val * 100)}%`}
+                  domain={[0, 1]}
+                  tick={axisTick}
+                  tickMargin={12}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  cursor={{ stroke: 'rgba(177,249,225,0.3)' }}
+                  contentStyle={{ backgroundColor: '#021d1a', border: '1px solid rgba(177,249,225,0.3)', borderRadius: 0, color: MINT, maxWidth: 360, whiteSpace: 'normal' }}
+                  itemStyle={{ color: MINT, fontWeight: 500, padding: '3px 0' }}
+                  labelStyle={{ color: '#fff', marginBottom: 8, paddingBottom: 6, borderBottom: '1px solid rgba(177,249,225,0.2)' }}
+                  formatter={value => [`${(value * 100).toFixed(1)}%`]}
+                  labelFormatter={label => evalData.find(d => d.question === label)?.full_question || label}
+                />
+                <Legend verticalAlign="top" height={36} iconType="square" wrapperStyle={{ paddingBottom: 16, color: MINT, fontWeight: 500 }} />
+                {Object.entries(SERIES)
+                  .filter(([key]) => key !== 'answer_relevancy' || hasRelevancy)
+                  .map(([key, { name, color }]) => (
+                    <Area
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      name={name}
+                      stroke={color}
+                      strokeWidth={2}
+                      fill={`url(#fill-${key})`}
+                      activeDot={{ r: 5, strokeWidth: 0, fill: color }}
+                    />
+                  ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Reveal>
+      </section>
     </div>
   );
 }

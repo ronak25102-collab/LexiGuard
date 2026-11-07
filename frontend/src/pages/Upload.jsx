@@ -1,6 +1,20 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
-import { CloudUpload, Cloud, FileText, CheckCircle, Loader, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { AlertCircle, ArrowUp, CheckCircle, FileText, RotateCcw } from 'lucide-react';
 import { uploadContract, checkContractStatus } from '../api/client';
+import PageHeader from '../components/PageHeader';
+import Reveal from '../components/Reveal';
+import Button from '../components/Button';
+
+// Backend stages and the progress value each one reports when it starts.
+const STAGES = [
+  ['Upload received', 10],
+  ['Parse PDF to text', 25],
+  ['Embed for semantic search', 40],
+  ['Extract parties and clauses', 50],
+  ['Build the knowledge graph', 85],
+  ['Ready to query', 100],
+];
 
 export default function Upload() {
   const [file, setFile] = useState(null);
@@ -9,6 +23,7 @@ export default function Upload() {
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [peakProgress, setPeakProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [elapsedTime, setElapsedTime] = useState(0);
 
@@ -16,29 +31,25 @@ export default function Upload() {
   const pollIntervalRef = useRef(null);
   const timeIntervalRef = useRef(null);
   const timeoutRef = useRef(null);
-  const uploadingRef = useRef(false);         // mirrors `uploading` for closures
-  const pollErrorCountRef = useRef(0);        // track consecutive poll failures
+  const uploadingRef = useRef(false);
+  const pollErrorCountRef = useRef(0);
   const startTimeRef = useRef(null);
 
-  const MAX_POLL_ERRORS = 5;   // tolerate up to 5 consecutive poll failures
+  const MAX_POLL_ERRORS = 5;
   const POLL_INTERVAL_MS = 2500;
-  const TIMEOUT_MS = 600000;   // 10 minutes
+  const TIMEOUT_MS = 600000; // 10 minutes
 
-  // Keep the ref in sync with state
-  useEffect(() => {
-    uploadingRef.current = uploading;
-  }, [uploading]);
+  useEffect(() => { uploadingRef.current = uploading; }, [uploading]);
 
-  // Cleanup all timers on unmount
-  useEffect(() => {
-    return () => {
-      clearInterval(pollIntervalRef.current);
-      clearInterval(timeIntervalRef.current);
-      clearTimeout(timeoutRef.current);
-    };
+  // The backend reports progress 0 on error; remember how far it got.
+  useEffect(() => { setPeakProgress(prev => Math.max(prev, progress)); }, [progress]);
+
+  useEffect(() => () => {
+    clearInterval(pollIntervalRef.current);
+    clearInterval(timeIntervalRef.current);
+    clearTimeout(timeoutRef.current);
   }, []);
 
-  /** Tear down every running timer. */
   const stopAllTimers = useCallback(() => {
     clearInterval(pollIntervalRef.current);
     clearInterval(timeIntervalRef.current);
@@ -48,93 +59,78 @@ export default function Upload() {
     timeoutRef.current = null;
   }, []);
 
+  const acceptFile = (candidate) => {
+    if (candidate.type === 'application/pdf') {
+      setFile(candidate);
+      setError(null);
+    } else {
+      setError('Please upload a PDF file');
+    }
+  };
+
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    if (uploading) return;
+    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
+    else if (e.type === 'dragleave') setDragActive(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const droppedFile = e.dataTransfer.files[0];
-      if (droppedFile.type === 'application/pdf') {
-        setFile(droppedFile);
-        setError(null);
-      } else {
-        setError('Please upload a PDF file');
-      }
-    }
+    if (uploading) return;
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) acceptFile(e.dataTransfer.files[0]);
   };
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (selectedFile.type === 'application/pdf') {
-        setFile(selectedFile);
-        setError(null);
-      } else {
-        setError('Please upload a PDF file');
-      }
-    }
+    if (e.target.files && e.target.files[0]) acceptFile(e.target.files[0]);
+  };
+
+  const reset = () => {
+    setUploadResult(null);
+    setError(null);
+    setFile(null);
+    setProgress(0);
+    setPeakProgress(0);
+    setCurrentStep('');
   };
 
   const handleUpload = async () => {
     if (!file) return;
 
-    console.log('Starting upload...', file.name);
     setUploading(true);
     setError(null);
     setUploadResult(null);
     setProgress(5);
-    setCurrentStep('Uploading file...');
+    setPeakProgress(5);
+    setCurrentStep('Uploading file…');
     const uploadStartTime = Date.now();
     startTimeRef.current = uploadStartTime;
     setElapsedTime(0);
     pollErrorCountRef.current = 0;
 
     try {
-      console.log('Calling uploadContract API...');
       const result = await uploadContract(file);
-      console.log('Upload API response:', result);
       setUploadResult(result);
       setProgress(10);
-      setCurrentStep('File uploaded. Initializing processing...');
-      
-      // Start elapsed time counter
+      setCurrentStep('File uploaded. Initializing processing…');
+
       timeIntervalRef.current = setInterval(() => {
         setElapsedTime(Math.floor((Date.now() - uploadStartTime) / 1000));
       }, 1000);
-      
-      // Poll for status
+
       const contractId = result.contract_id;
       pollIntervalRef.current = setInterval(async () => {
-        // Guard: if we already stopped, don't run
         if (!uploadingRef.current) return;
-
         try {
           const status = await checkContractStatus(contractId);
-          // Reset error counter on success
           pollErrorCountRef.current = 0;
-
           setUploadResult(prev => ({ ...prev, ...status }));
-          
-          // Update progress from backend
-          if (status.progress !== undefined) {
-            setProgress(status.progress);
-          }
-          
-          if (status.message) {
-            setCurrentStep(status.message);
-          }
-          
+          if (status.progress !== undefined) setProgress(status.progress);
+          if (status.message) setCurrentStep(status.message);
+
           if (status.status === 'completed') {
             stopAllTimers();
             setProgress(100);
@@ -146,33 +142,25 @@ export default function Upload() {
           }
         } catch (err) {
           pollErrorCountRef.current += 1;
-          console.error(
-            `Error polling status (${pollErrorCountRef.current}/${MAX_POLL_ERRORS}):`,
-            err
-          );
-
-          // Tolerate transient failures; only bail after MAX_POLL_ERRORS
+          console.error(`Error polling status (${pollErrorCountRef.current}/${MAX_POLL_ERRORS}):`, err);
           if (pollErrorCountRef.current >= MAX_POLL_ERRORS) {
             stopAllTimers();
             setError(
               `Lost connection to server after ${MAX_POLL_ERRORS} retries. ` +
-              'The contract may still be processing â€” refresh the Dashboard to check.'
+              'The contract may still be processing. Refresh the Dashboard to check.'
             );
             setUploading(false);
           }
         }
       }, POLL_INTERVAL_MS);
 
-      // Stop polling after 10 minutes
       timeoutRef.current = setTimeout(() => {
-        // Use the ref to check current uploading state (avoids stale closure)
         if (uploadingRef.current) {
           stopAllTimers();
-          setError('Processing timeout â€” please check the Dashboard for contract status.');
+          setError('Processing timed out. Check the Dashboard for the contract status.');
           setUploading(false);
         }
       }, TIMEOUT_MS);
-
     } catch (err) {
       setError(err.message || 'Failed to upload contract');
       setUploading(false);
@@ -189,35 +177,16 @@ export default function Upload() {
 
   const getEstimatedTimeRemaining = (currentProgress, elapsedSeconds) => {
     if (currentProgress <= 0 || currentProgress >= 100) return null;
-    
-    // Estimate based on typical processing time
-    // Typically: 10% = 5s, 25% = 15s, 50% = 120s, 85% = 240s, 100% = 300s
-    const typicalTimes = {
-      10: 5,
-      25: 15,
-      50: 120,
-      85: 240,
-      100: 300
-    };
-    
-    // Find next milestone
+    const typicalTimes = { 10: 5, 25: 15, 50: 120, 85: 240, 100: 300 };
     let nextTime = 300;
     for (const [milestone, time] of Object.entries(typicalTimes)) {
-      if (currentProgress < parseInt(milestone)) {
-        nextTime = time;
-        break;
-      }
+      if (currentProgress < parseInt(milestone)) { nextTime = time; break; }
     }
-    
-    // Simple estimate: remaining time = (remaining progress / progress rate)
     if (elapsedSeconds > 0 && currentProgress > 5) {
-      const progressRate = currentProgress / elapsedSeconds; // % per second
-      const remainingProgress = 100 - currentProgress;
-      const estimatedSeconds = remainingProgress / progressRate;
-      return Math.max(30, Math.min(300, Math.floor(estimatedSeconds))); // Between 30s and 5min
+      const progressRate = currentProgress / elapsedSeconds;
+      const estimatedSeconds = (100 - currentProgress) / progressRate;
+      return Math.max(30, Math.min(300, Math.floor(estimatedSeconds)));
     }
-    
-    // Fallback to typical time
     return nextTime - elapsedSeconds;
   };
 
@@ -227,260 +196,168 @@ export default function Upload() {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   };
 
+  const status = uploadResult?.status;
+  const failed = status === 'error' || status === 'not_found' || (!!error && !!uploadResult);
+  const completed = status === 'completed';
+  const reachedIndex = STAGES.reduce((last, [, at], index) => (peakProgress >= at ? index : last), 0);
+  const stageState = index => {
+    if (completed) return 'done';
+    if (index < reachedIndex) return 'done';
+    if (index === reachedIndex) return failed ? 'error' : 'active';
+    return 'pending';
+  };
+  const remaining = uploading && progress > 10 && progress < 100 ? getEstimatedTimeRemaining(progress, elapsedTime) : null;
+  const heading = completed ? 'Processing complete.' : status === 'not_found' ? 'Contract not found.'
+    : failed ? 'Processing failed.' : 'Processing your contract…';
+
   return (
-    <div className="h-[calc(100vh-8rem)] w-full bg-transparent text-slate-900 relative overflow-hidden flex flex-col items-center justify-center -my-4">
-      <div className="max-w-4xl w-full relative z-10 mx-auto">
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-extrabold mb-2 text-slate-900 tracking-tight drop-shadow-sm">
-            Upload Contract
-          </h1>
-          <p className="text-slate-800 text-lg font-semibold">
-            Upload a legal contract PDF to analyze and add to the knowledge graph
-          </p>
-        </div>
+    <div className="page">
+      <PageHeader
+        index="02"
+        eyebrow="Upload"
+        title="Add a contract to the graph."
+        description="Drop a PDF. LexiGuard parses it, extracts parties and clauses, and links it into the knowledge graph. Most contracts take two to five minutes."
+      />
 
-        {/* Upload Area (Glassmorphism) */}
-        <div
-          className={`relative overflow-hidden rounded-3xl py-8 px-6 transition-all duration-500 ease-out group backdrop-blur-xl ${
-            dragActive
-              ? 'bg-white/50 border border-slate-900/20 shadow-[0_0_50px_-10px_rgba(0,0,0,0.15)] scale-[1.02]'
-              : 'bg-white/30 border border-white/50 hover:bg-white/40 hover:border-white/60 shadow-2xl'
-          }`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-        >
-          {/* Animated Background Clouds */}
-          <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-             <Cloud className="absolute text-slate-900/10 w-24 h-24 -top-4 -left-4 animate-[bounce_8s_infinite]" />
-             <Cloud className="absolute text-slate-900/10 w-32 h-32 bottom-4 right-10 animate-[bounce_6s_infinite_reverse]" />
-             <Cloud className="absolute text-slate-900/10 w-16 h-16 top-10 right-20 animate-[bounce_7s_infinite]" />
-          </div>
-
-          <input
-            type="file"
-            accept=".pdf"
-            onChange={handleFileChange}
-            className="hidden"
-            id="file-upload"
-            disabled={uploading}
-          />
-
+      <section className="container-x grid gap-6 pb-24 pt-8 lg:grid-cols-[1.4fr_1fr]">
+        <Reveal self y={40}>
+          <input type="file" accept=".pdf" onChange={handleFileChange} className="sr-only" id="file-upload" disabled={uploading} />
           <label
             htmlFor="file-upload"
-            className="relative flex flex-col items-center justify-center cursor-pointer z-10 scale-90"
+            className={`dropzone ${dragActive ? 'is-drag' : ''} ${uploading ? 'is-disabled' : ''}`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            data-cursor-text={uploading ? undefined : 'Choose a PDF'}
           >
-            <div className={`relative mb-8 transition-transform duration-500 ${dragActive ? 'scale-125' : 'group-hover:scale-110'}`}>
-               {/* Pulsing ring behind the icon when dragging */}
-               {dragActive && (
-                 <div className="absolute inset-0 bg-slate-900/10 rounded-full animate-ping scale-150" />
-               )}
-               <CloudUpload className={`w-24 h-24 transition-colors duration-300 drop-shadow-md ${
-                 dragActive ? 'text-slate-900 animate-bounce' : 'text-slate-700 group-hover:text-slate-900'
-               }`} />
-            </div>
-            
-            <p className="text-2xl font-bold mb-3 text-slate-900 text-center drop-shadow-sm">
-              {file ? (
-                 <span className="text-slate-900 font-extrabold">
-                    {file.name}
-                 </span>
-              ) : 'Drop your PDF here or click to browse'}
-            </p>
-            <p className="text-slate-700 text-sm font-semibold tracking-wide">
-              {file ? formatFileSize(file.size) : 'Supports PDF files only (Max 10MB)'}
-            </p>
+            <span className="dropzone__icon" aria-hidden="true">
+              {file ? <FileText size={22} /> : <ArrowUp size={22} />}
+            </span>
+            <span className="display-m max-w-[16ch] break-words">
+              {file ? file.name : dragActive ? 'Release to add it.' : 'Drop a PDF here, or click to browse.'}
+            </span>
+            <span className="text-[0.95rem] opacity-70">
+              {file ? formatFileSize(file.size) : 'PDF files only, up to 10 MB'}
+            </span>
           </label>
-        </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mt-6 p-4 backdrop-blur-md bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3 animate-[pulse_2s_ease-in-out]">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <span className="text-red-700 font-medium">{error}</span>
-          </div>
-        )}
+          {error && !uploadResult && (
+            <div className="notice mt-4" role="alert">
+              <AlertCircle size={18} className="mt-0.5 flex-none" aria-hidden="true" /> {error}
+            </div>
+          )}
 
-        {/* Upload Button */}
-        {file && !uploadResult && (
-          <button
-            onClick={handleUpload}
-            disabled={uploading}
-            className="mt-4 w-full relative overflow-hidden group bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-slate-900/20 hover:bg-slate-800 hover:shadow-2xl hover:shadow-slate-900/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-1"
-          >
-            {uploading ? (
-              <>
-                <Loader className="w-6 h-6 animate-spin text-white" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <CloudUpload className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                Upload & Process Contract
-              </>
-            )}
-          </button>
-        )}
+          {file && !uploadResult && (
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button onClick={handleUpload} disabled={uploading}>
+                {uploading ? 'Uploading…' : 'Upload and process'}
+              </Button>
+              <Button variant="outline" icon={RotateCcw} onClick={reset} disabled={uploading}>Choose another</Button>
+            </div>
+          )}
+        </Reveal>
 
-        {/* Upload Result (Glassmorphism) */}
-        {uploadResult && (
-          <div className="mt-10 backdrop-blur-xl bg-white/30 rounded-3xl p-5 border border-white/50 shadow-2xl">
-            <div className="flex items-start gap-6">
-              <div className="bg-white/50 p-4 rounded-2xl border border-white/50 shadow-inner">
-                {uploadResult.status === 'completed' ? (
-                  <CheckCircle className="w-10 h-10 text-slate-800 flex-shrink-0 drop-shadow-sm" />
-                ) : uploadResult.status === 'not_found' ? (
-                  <AlertCircle className="w-10 h-10 text-red-600 flex-shrink-0 drop-shadow-sm" />
-                ) : (
-                  <Loader className="w-10 h-10 text-slate-800 animate-spin flex-shrink-0 drop-shadow-sm" />
-                )}
-              </div>
-
-              <div className="flex-1">
-                <h3 className="text-2xl font-bold mb-4 text-slate-900">
-                  {uploadResult.status === 'completed'
-                    ? 'Processing Complete!'
-                    : uploadResult.status === 'not_found'
-                    ? 'Contract Not Found'
-                    : uploadResult.status === 'error'
-                    ? 'Processing Failed'
-                    : 'Processing...'}
-                </h3>
-
-                {/* Progress Bar */}
-                {progress > 0 && (
-                  <div className="mb-6 bg-white/40 p-5 rounded-2xl border border-white/50 shadow-inner">
-                    <div className="flex justify-between text-sm mb-3">
-                      <span className="text-slate-700 font-medium">{currentStep}</span>
-                      <div className="flex items-center gap-3">
-                        {elapsedTime > 0 && (
-                          <span className="text-slate-600 text-xs font-medium bg-white/50 px-2 py-1 rounded-md">
-                            {formatTime(elapsedTime)}
-                            {uploading && progress < 100 && progress > 10 && getEstimatedTimeRemaining(progress, elapsedTime) > 0 && (
-                              <span className="text-slate-500"> â€¢ ~{formatTime(getEstimatedTimeRemaining(progress, elapsedTime))} left</span>
-                            )}
-                          </span>
-                        )}
-                        <span className="text-slate-900 font-bold bg-slate-900/10 px-2 py-1 rounded-md">{progress}%</span>
-                      </div>
-                    </div>
-                    <div className="w-full bg-white/50 rounded-full h-3 overflow-hidden shadow-inner border border-white/50">
-                      <div
-                        className={`h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden ${
-                          progress >= 100
-                            ? 'bg-slate-800'
-                            : 'bg-slate-800'
-                        }`}
-                        style={{ width: `${progress}%` }}
-                      >
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4 text-sm text-slate-700 mb-6">
-                  <div className="bg-white/40 p-3 rounded-xl border border-white/50">
-                    <span className="block text-slate-500 text-xs mb-1 uppercase tracking-wider">Contract ID</span>
-                    <code className="text-slate-800 font-mono">{uploadResult.contract_id}</code>
-                  </div>
-                  {uploadResult.size_bytes && (
-                    <div className="bg-white/40 p-3 rounded-xl border border-white/50">
-                      <span className="block text-slate-500 text-xs mb-1 uppercase tracking-wider">File Size</span>
-                      <span className="text-slate-800 font-medium">{formatFileSize(uploadResult.size_bytes)}</span>
-                    </div>
-                  )}
-                  <div className="bg-white/40 p-3 rounded-xl border border-white/50 col-span-2">
-                    <span className="block text-slate-500 text-xs mb-1 uppercase tracking-wider">Status</span>
-                    <span className={`font-bold tracking-wide ${
-                        uploadResult.status === 'completed'
-                          ? 'text-slate-800'
-                          : uploadResult.status === 'processing' || uploadResult.status === 'extracting'
-                          ? 'text-slate-700'
-                          : uploadResult.status === 'error'
-                          ? 'text-red-600'
-                          : 'text-amber-600'
-                      }`}
-                    >
-                      {uploadResult.status?.toUpperCase() ?? 'UNKNOWN'}
-                    </span>
-                  </div>
+        <Reveal self y={40} delay={0.1}>
+          <div className="panel h-full p-6">
+            {uploadResult ? (
+              <div aria-live="polite">
+                <div className="flex items-start justify-between gap-4">
+                  <h2 className="text-[2rem] leading-[1.15]">{heading}</h2>
+                  {completed ? <CheckCircle className="flex-none text-[var(--color-mint)]" size={26} aria-hidden="true" />
+                    : failed ? <AlertCircle className="flex-none text-[#ff8a7a]" size={26} aria-hidden="true" /> : null}
                 </div>
 
-                {uploadResult.status === 'completed' && (
-                  <div className="flex gap-4">
-                    <a
-                      href={`/contract/${uploadResult.graph_id || uploadResult.contract_id}`}
-                      className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-slate-900/20"
-                    >
-                      View Knowledge Graph
-                    </a>
-                    <a
-                      href="/query"
-                      className="px-6 py-3 bg-white/40 hover:bg-white/60 text-slate-900 font-semibold rounded-xl transition-colors border border-white/50"
-                    >
-                      Ask Questions
-                    </a>
+                <div className="mt-6 flex items-baseline justify-between gap-4 text-sm">
+                  <span className="text-[var(--muted)]">{failed && error ? error : currentStep}</span>
+                  <span className="tabular flex-none font-medium">
+                    {elapsedTime > 0 && formatTime(elapsedTime)}
+                    {remaining > 0 && <span className="text-[var(--muted)]"> · ~{formatTime(remaining)} left</span>}
+                    <span className="ml-3">{progress}%</span>
+                  </span>
+                </div>
+                <div className="progress mt-3" aria-hidden="true"><span style={{ transform: `scaleX(${progress / 100})` }} /></div>
+
+                <ol className="pipeline mt-6">
+                  {STAGES.map(([label], index) => (
+                    <li key={label} data-state={stageState(index)}>
+                      <span className="pipeline__dot" aria-hidden="true" />
+                      <span>{label}</span>
+                      <span className="text-xs">
+                        {stageState(index) === 'done' ? 'Done' : stageState(index) === 'active' ? 'Working' : stageState(index) === 'error' ? 'Stopped' : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+
+                <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
+                  <div className="col-span-2">
+                    <dt className="text-xs text-[var(--muted)]">Contract ID</dt>
+                    <dd className="mono m-0 mt-1 break-all">{uploadResult.contract_id}</dd>
+                  </div>
+                  {uploadResult.size_bytes && (
+                    <div>
+                      <dt className="text-xs text-[var(--muted)]">File size</dt>
+                      <dd className="m-0 mt-1">{formatFileSize(uploadResult.size_bytes)}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-xs text-[var(--muted)]">Status</dt>
+                    <dd className="m-0 mt-1 font-medium">{status ? status.replace('_', ' ') : 'unknown'}</dd>
+                  </div>
+                </dl>
+
+                {completed && (
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Button to={`/contract/${encodeURIComponent(uploadResult.graph_id || uploadResult.contract_id)}`}>View knowledge graph</Button>
+                    <Button to="/query" variant="outline">Ask questions</Button>
                   </div>
                 )}
-
-                {(uploadResult.status === 'error' || error) && !uploading && (
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => {
-                        setUploadResult(null);
-                        setError(null);
-                        setFile(null);
-                        setProgress(0);
-                        setCurrentStep('');
-                      }}
-                      className="px-6 py-3 bg-white/40 hover:bg-white/60 text-slate-900 font-semibold rounded-xl transition-colors border border-white/50"
-                    >
-                      Try Again
-                    </button>
+                {failed && !uploading && (
+                  <div className="mt-6">
+                    <Button variant="outline" icon={RotateCcw} onClick={reset}>Try again</Button>
                   </div>
                 )}
               </div>
-            </div>
+            ) : (
+              <div className="flex h-full flex-col justify-between gap-8">
+                <div>
+                  <span className="eyebrow">What happens next</span>
+                  <ol className="pipeline mt-6">
+                    {STAGES.map(([label]) => (
+                      <li key={label} data-state="pending">
+                        <span className="pipeline__dot" aria-hidden="true" />
+                        <span>{label}</span>
+                        <span />
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                <p className="text-body">
+                  You can leave this page while it runs. The contract appears on the Dashboard once the graph is built.
+                  {' '}<Link to="/" className="text-link text-[var(--fg)]">Open the Dashboard</Link>
+                </p>
+              </div>
+            )}
           </div>
-        )}
+        </Reveal>
+      </section>
 
-        {/* Instructions (Glassmorphism) */}
-        <div className="mt-6 grid md:grid-cols-3 gap-6">
-          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-5 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
-            <div className="w-12 h-12 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-3 border border-slate-900/10 shadow-inner">
-              <FileText className="w-6 h-6 text-slate-800" />
+      <section className="container-x pb-24">
+        <Reveal className="process-cols">
+          {[
+            ['01', 'Upload a PDF', 'Any contract in PDF format, up to 10 MB.'],
+            ['02', 'AI processing', 'Parties, clauses and relationships are extracted. Usually 2 to 5 minutes.'],
+            ['03', 'Query and analyse', 'Ask questions and get answers with the clauses cited.'],
+          ].map(([num, title, text]) => (
+            <div key={num}>
+              <span className="text-sm text-[var(--muted)]">{num}</span>
+              <h3 className="mb-3 mt-8 text-[2rem] leading-[1.15]">{title}</h3>
+              <p className="text-body">{text}</p>
             </div>
-            <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">1. Upload PDF</h3>
-            <p className="text-sm text-slate-700 leading-relaxed">
-              Upload any legal contract in PDF format (max 10MB)
-            </p>
-          </div>
-
-          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-5 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
-            <div className="w-12 h-12 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-3 border border-slate-900/10 shadow-inner">
-              <Loader className="w-6 h-6 text-slate-800" />
-            </div>
-            <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">2. AI Processing</h3>
-            <p className="text-sm text-slate-700 leading-relaxed">
-              AI extracts parties, clauses, and relationships (2-5 min)
-            </p>
-          </div>
-
-          <div className="backdrop-blur-md bg-white/30 rounded-3xl p-5 border border-white/50 hover:bg-white/40 transition-colors shadow-xl">
-            <div className="w-12 h-12 bg-slate-900/5 rounded-2xl flex items-center justify-center mb-3 border border-slate-900/10 shadow-inner">
-              <CheckCircle className="w-6 h-6 text-slate-800" />
-            </div>
-            <h3 className="font-bold text-lg mb-2 text-slate-900 drop-shadow-sm">3. Query & Analyze</h3>
-            <p className="text-sm text-slate-700 leading-relaxed">
-              Ask questions about your contract instantly
-            </p>
-          </div>
-        </div>
-      </div>
+          ))}
+        </Reveal>
+      </section>
     </div>
   );
 }
-
-
-

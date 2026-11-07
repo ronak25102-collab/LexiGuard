@@ -1,52 +1,56 @@
-﻿import React, { useEffect, useRef } from 'react';
+import { useCallback, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import PageTransition from './components/PageTransition';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
+import Cursor from './components/Cursor';
+import Preloader from './components/Preloader';
 import Dashboard from './pages/Dashboard';
 import ContractDetail from './pages/ContractDetail';
 import QueryInterface from './pages/QueryInterface';
 import EvaluationDashboard from './pages/EvaluationDashboard';
 import Upload from './pages/Upload';
+import { SiteProvider, useSite } from './lib/SiteContext';
+import { ScrollTrigger, prefersReducedMotion } from './lib/motion';
 
-function App() {
-  const vantaRef = useRef(null);
+const INTRO_KEY = 'lexiguard:intro-seen';
+
+// The intro plays on the home page once per browser session. Deep links and
+// reduced-motion visitors go straight to content.
+function shouldPlayIntro() {
+  if (typeof window === 'undefined' || prefersReducedMotion()) return false;
+  if (window.location.pathname !== '/') return false;
+  try { return sessionStorage.getItem(INTRO_KEY) !== '1'; } catch { return true; }
+}
+
+function Shell({ playIntro }) {
   const location = useLocation();
+  const { lenis, setIntroDone } = useSite();
+  const [showPreloader, setShowPreloader] = useState(playIntro);
 
-  useEffect(() => {
-    let vantaEffect;
-    if (window.VANTA) {
-      vantaEffect = window.VANTA.FOG({
-        el: vantaRef.current,
-        mouseControls: true,
-        touchControls: true,
-        gyroControls: false,
-        minHeight: 200.00,
-        minWidth: 200.00,
-        highlightColor: 0xbae6fd,
-        midtoneColor: 0x38bdf8,
-        lowlightColor: 0x0284c7,
-        baseColor: 0xf0f9ff,
-        blurFactor: 0.60,
-        speed: 1.00,
-        zoom: 1.00
-      });
-    }
-    return () => {
-      if (vantaEffect) vantaEffect.destroy();
-    };
-  }, []);
+  const revealPage = useCallback(() => setIntroDone(true), [setIntroDone]);
+  const finishPreloader = useCallback(() => {
+    try { sessionStorage.setItem(INTRO_KEY, '1'); } catch { /* private mode */ }
+    setIntroDone(true);
+    setShowPreloader(false);
+  }, [setIntroDone]);
+
+  // The old page is fully covered by the curtain at this point: jump to the
+  // top, then let scroll triggers re-measure the new page.
+  const onPageSwap = useCallback(() => {
+    lenis?.scrollTo(0, { immediate: true, force: true });
+    window.scrollTo(0, 0);
+    requestAnimationFrame(() => ScrollTrigger.refresh());
+  }, [lenis]);
 
   return (
-    <div className="app-shell min-h-screen text-slate-50 flex flex-col relative">
-      {/* Vanta Global Background */}
-      <div className="fixed inset-0 z-[-1] pointer-events-none" aria-hidden="true">
-        <div ref={vantaRef} className="w-full h-full" />
-      </div>
-      
+    <>
+      {showPreloader && <Preloader onReveal={revealPage} onComplete={finishPreloader} />}
+      <Cursor />
       <Navbar />
-      <main className="app-main flex-grow container mx-auto px-4 py-8 max-w-7xl relative z-10">
-                <AnimatePresence mode="wait">
+      <div inert={showPreloader}>
+        <AnimatePresence mode="wait" onExitComplete={onPageSwap}>
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<PageTransition><Dashboard /></PageTransition>} />
             <Route path="/contract/:id" element={<PageTransition><ContractDetail /></PageTransition>} />
@@ -55,11 +59,17 @@ function App() {
             <Route path="/upload" element={<PageTransition><Upload /></PageTransition>} />
           </Routes>
         </AnimatePresence>
-      </main>
-    </div>
+        <Footer />
+      </div>
+    </>
   );
 }
 
-export default App;
-
-
+export default function App() {
+  const [playIntro] = useState(shouldPlayIntro);
+  return (
+    <SiteProvider introInitiallyDone={!playIntro}>
+      <Shell playIntro={playIntro} />
+    </SiteProvider>
+  );
+}

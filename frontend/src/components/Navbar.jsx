@@ -1,86 +1,139 @@
-import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { Scale, Menu, X, Sparkles } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import BrandMark from './BrandMark';
+import RollText from './RollText';
+import { useSite } from '../lib/SiteContext';
+import { useApiStatus } from '../lib/useApiStatus';
+
+export const NAV_LINKS = [
+  { name: 'Dashboard', path: '/' },
+  { name: 'Ask', path: '/query' },
+  { name: 'Upload', path: '/upload' },
+  { name: 'Evaluation', path: '/evaluation' },
+];
+
+export const STATUS_LABEL = {
+  checking: 'Checking API',
+  online: 'API and graph online',
+  degraded: 'API online, graph unreachable',
+  offline: 'API unreachable',
+};
+
+const isActivePath = (pathname, path) =>
+  path === '/' ? pathname === '/' || pathname.startsWith('/contract/') : pathname.startsWith(path);
 
 export default function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
+  const location = useLocation();
+  const { stopScroll, startScroll } = useSite();
+  const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const menuRef = useRef(null);
+  const toggleRef = useRef(null);
+  const apiState = useApiStatus();
 
-  const toggleMenu = () => setIsOpen(!isOpen);
+  useEffect(() => { setOpen(false); }, [location.pathname]);
 
-  const navLinks = [
-    { name: 'Dashboard', path: '/' },
-    { name: 'Query', path: '/query' },
-    { name: 'Upload', path: '/upload' },
-    { name: 'Evaluation', path: '/evaluation' },
-  ];
+  // Fade the bar out once the page has scrolled a little, so it doesn't sit on
+  // top of the content; bring it back as soon as the visitor scrolls up.
+  useEffect(() => {
+    const SHOW_ABOVE = 120; // px from the top where the bar always shows
+    const TOLERANCE = 6;    // ignore tiny scroll jitter
+    let lastY = window.scrollY;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const y = window.scrollY;
+      if (y <= SHOW_ABOVE) setHidden(false);
+      else if (y > lastY + TOLERANCE) setHidden(true);
+      else if (y < lastY - TOLERANCE) setHidden(false);
+      if (Math.abs(y - lastY) > TOLERANCE || y <= SHOW_ABOVE) lastY = y;
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    setHidden(false);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, [location.pathname]);
 
-  const activeClassName = "nav-link-active";
-  const inactiveClassName = "nav-link";
+  // While open: stop Lenis, move focus into the menu, close on Escape.
+  useEffect(() => {
+    if (!open) return undefined;
+    stopScroll();
+    const focusTimer = setTimeout(() => menuRef.current?.querySelector('a')?.focus({ preventScroll: true }), 400);
+    const onKey = event => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        toggleRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(focusTimer);
+      window.removeEventListener('keydown', onKey);
+      startScroll();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   return (
-    <nav className="app-nav">
-      <div className="container mx-auto px-4 max-w-7xl">
-        <div className="flex justify-between h-[72px]">
-          <div className="flex items-center">
-            <NavLink to="/" className="flex items-center space-x-3 text-2xl font-bold text-slate-900 transition-opacity hover:opacity-80">
-              <img src="/logo.png" alt="LexiGuard Logo" className="h-12 w-12 object-contain" />
-              <span>LexiGuard</span>
-            </NavLink>
-          </div>
-
-          {/* Desktop Menu */}
-          <div className="hidden md:flex items-center gap-2">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.name}
-                to={link.path}
-                className={({ isActive }) =>
-                  `px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive ? activeClassName : inactiveClassName
-                  }`
-                }
-              >
-                {link.name}
-              </NavLink>
-            ))}
-            <NavLink to="/query" className="nav-cta">
-              <Sparkles className="h-4 w-4 text-yellow-400" /> Ask LexiGuard
-            </NavLink>
-          </div>
-
-          {/* Mobile Menu Button */}
-          <div className="flex items-center md:hidden">
-            <button
-              onClick={toggleMenu}
-              className="text-slate-800 hover:text-slate-900 focus:outline-none p-2"
-            >
-              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
+    <nav
+      className="nav-full"
+      data-navigation-status={open ? 'active' : 'not-active'}
+      data-hidden={hidden && !open ? 'true' : 'false'}
+      aria-label="Primary"
+    >
+      <div className="nav-full__bar">
+        <Link to="/" className="nav-full__wrap" aria-label="LexiGuard home">
+          <span className="nav-full__logo"><BrandMark strokeWidth={3.2} /></span>
+          <span className="nav-full__name">LexiGuard<br /><span className="nav-full__span">Contract AI</span></span>
+        </Link>
+        <div className="nav-actions">
+          <button
+            ref={toggleRef}
+            type="button"
+            className="btn-nav roll-trigger"
+            aria-expanded={open}
+            aria-controls="site-menu"
+            onClick={() => setOpen(value => !value)}
+          >
+            <span className="btn__bg" aria-hidden="true" />
+            <RollText stagger={0.01}>Menu</RollText>
+            <span className="nav-full__hamburger" aria-hidden="true">
+              <span className="nav-full__hamburger-bar" />
+              <span className="nav-full__hamburger-bar" />
+              <span className="nav-full__hamburger-bar" />
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      {isOpen && (
-        <div className="md:hidden mobile-nav">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.name}
-                to={link.path}
-                onClick={() => setIsOpen(false)}
-                className={({ isActive }) =>
-                  `block px-3 py-2 rounded-md text-base font-medium ${
-                    isActive ? activeClassName : inactiveClassName
-                  }`
-                }
-              >
-                {link.name}
-              </NavLink>
+      <div id="site-menu" ref={menuRef} className="nav-full__tile" inert={!open} aria-hidden={!open}>
+        <div className="nav-full__grid">
+          <ul className="nav-full__ul">
+            {NAV_LINKS.map(link => (
+              <li className="nav-full__li" key={link.path}>
+                <Link
+                  to={link.path}
+                  className={`nav-full__link roll-trigger ${isActivePath(location.pathname, link.path) ? 'is--current' : ''}`}
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="nav-full__link-text"><RollText stagger={0.01}>{link.name}</RollText></span>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
+          <p className="nav-full__aside">
+            LexiGuard turns contracts into a knowledge graph of parties, clauses and cross-references, then
+            answers with the clause behind every claim.
+          </p>
         </div>
-      )}
+        <div className="nav__bottom">
+          <p className="nav__word">Every clause, made clear.</p>
+          <p className="nav__word status-dot" data-state={apiState}>{STATUS_LABEL[apiState]}</p>
+        </div>
+      </div>
     </nav>
   );
 }
