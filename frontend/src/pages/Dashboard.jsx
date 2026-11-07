@@ -4,7 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { getContracts, getGraphStats } from '../api/client';
 import Button from '../components/Button';
 import BigLink from '../components/BigLink';
-import GraphVisual from '../components/GraphVisual';
+import HeroCard from '../components/HeroCard';
 import GraphField from '../components/GraphField';
 import FloatingCards from '../components/FloatingCards';
 import ContractsModal from '../components/ContractsModal';
@@ -262,7 +262,7 @@ export default function Dashboard() {
             <span className="hero_img-layout" aria-hidden="true">
               <span className="hero_img-wrap">
                 <span className="hero_img">
-                  <GraphVisual ref={imgRef} />
+                  <HeroCard ref={imgRef} />
                 </span>
               </span>
             </span>
