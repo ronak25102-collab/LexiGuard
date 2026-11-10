@@ -9,7 +9,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Project root directory
@@ -28,6 +28,7 @@ class LLMProvider(StrEnum):
     GOOGLE = "google"
     NVIDIA = "nvidia"
     CODECRAFT = "codecraft"
+    NARAROUTER = "nararouter"
 
 
 class Settings(BaseSettings):
@@ -45,9 +46,22 @@ class Settings(BaseSettings):
     embedding_provider: LLMProvider | None = None
 
     # OpenAI-compatible CodeCraft gateway; model identifiers are gateway-reported.
-    codecraft_api_key: str | None = None
+    codecraft_api_key: str | None = Field(default=None, repr=False)
+    codecraft_api_keys: list[SecretStr] = Field(default_factory=list, repr=False)
     codecraft_model: str = "gpt-5.6-luna"
+    codecraft_fallback_models: list[str] = Field(default_factory=list)
+    codecraft_timeout: float = Field(default=30.0, gt=0)
+    codecraft_max_tokens: int = Field(default=4096, gt=0)
     codecraft_base_url: str = "https://codecraftapi.com/v1"
+
+    # OpenAI-compatible NaraRouter gateway (router.bynara.id)
+    nararouter_api_key: str | None = Field(default=None, repr=False)
+    nararouter_api_keys: list[SecretStr] = Field(default_factory=list, repr=False)
+    nararouter_model: str = "gpt-6-luna"
+    nararouter_fallback_models: list[str] = Field(default_factory=list)
+    nararouter_timeout: float = Field(default=45.0, gt=0)
+    nararouter_max_tokens: int = Field(default=4096, gt=0)
+    nararouter_base_url: str = "https://router.bynara.id/v1"
 
     # OpenAI
     openai_api_key: str | None = None
@@ -113,10 +127,32 @@ class Settings(BaseSettings):
                 raise ValueError("NVIDIA_API_KEY is required when LLM_PROVIDER=nvidia")
             return self.nvidia_api_key
         elif self.llm_provider == LLMProvider.CODECRAFT:
-            if not self.codecraft_api_key:
-                raise ValueError("CODECRAFT_API_KEY is required when LLM_PROVIDER=codecraft")
-            return self.codecraft_api_key
+            return self.codecraft_keys[0]
+        elif self.llm_provider == LLMProvider.NARAROUTER:
+            return self.nararouter_keys[0]
         raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
+
+    @property
+    def nararouter_keys(self) -> list[str]:
+        """Prefer an explicitly configured pool over the legacy single key."""
+        keys = [key.get_secret_value().strip() for key in self.nararouter_api_keys]
+        if not keys and self.nararouter_api_key:
+            keys = [self.nararouter_api_key.strip()]
+        keys = list(dict.fromkeys(key for key in keys if key))
+        if not keys:
+            raise ValueError("Set NARAROUTER_API_KEYS or NARAROUTER_API_KEY")
+        return keys
+
+    @property
+    def codecraft_keys(self) -> list[str]:
+        """Prefer an explicitly configured pool over the legacy single key."""
+        keys = [key.get_secret_value().strip() for key in self.codecraft_api_keys]
+        if not keys and self.codecraft_api_key:
+            keys = [self.codecraft_api_key.strip()]
+        keys = list(dict.fromkeys(key for key in keys if key))
+        if not keys:
+            raise ValueError("Set CODECRAFT_API_KEYS or CODECRAFT_API_KEY")
+        return keys
 
     @property
     def active_model(self) -> str:
@@ -129,14 +165,16 @@ class Settings(BaseSettings):
             return self.nvidia_model
         if self.llm_provider == LLMProvider.CODECRAFT:
             return self.codecraft_model
+        if self.llm_provider == LLMProvider.NARAROUTER:
+            return self.nararouter_model
         raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
 
     @property
     def effective_embedding_provider(self) -> LLMProvider:
         """Allow generation failover without silently changing the vector space."""
         provider = self.embedding_provider or self.llm_provider
-        if provider == LLMProvider.CODECRAFT:
-            raise ValueError("Set EMBEDDING_PROVIDER explicitly when using CodeCraft")
+        if provider in {LLMProvider.CODECRAFT, LLMProvider.NARAROUTER}:
+            raise ValueError(f"Set EMBEDDING_PROVIDER explicitly when using {provider}")
         return provider
 
     def ensure_data_dirs(self) -> None:

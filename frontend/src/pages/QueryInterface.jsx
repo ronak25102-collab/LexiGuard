@@ -16,6 +16,137 @@ const sampleQuestions = [
 
 const cleanTitle = title => String(title || '').replace(/^#+\s*/, '').trim();
 
+function parseInlineFormatting(text) {
+  if (!text) return null;
+  // Match tokens: `code`, **bold**, *italic*
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, idx) => {
+    if (!part) return null;
+    if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+      return (
+        <code key={idx} className="mono rounded bg-[var(--color-mint-15)] px-1.5 py-0.5 text-xs text-[var(--color-mint)]">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      return (
+        <strong key={idx} className="font-semibold text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
+      return (
+        <em key={idx} className="italic text-[var(--color-mint)]">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+    return part;
+  });
+}
+
+function FormattedContent({ content }) {
+  if (!content) return null;
+
+  const lines = content.split('\n');
+  const blocks = [];
+  let currentList = null;
+
+  const flushList = () => {
+    if (currentList) {
+      blocks.push(currentList);
+      currentList = null;
+    }
+  };
+
+  lines.forEach((rawLine, index) => {
+    const trimmed = rawLine.trim();
+
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+
+    // Bullet list: lines starting with "- ", "* ", "• "
+    const bulletMatch = rawLine.match(/^\s*[-*•]\s+(.+)$/);
+    if (bulletMatch) {
+      if (!currentList || currentList.type !== 'bullet') {
+        flushList();
+        currentList = { type: 'bullet', items: [], key: `ul-${index}` };
+      }
+      currentList.items.push({ text: bulletMatch[1], key: `li-${index}` });
+      return;
+    }
+
+    // Numbered list: lines starting with "1. ", "1) "
+    const numMatch = rawLine.match(/^\s*(\d+)[\.)]\s+(.+)$/);
+    if (numMatch) {
+      if (!currentList || currentList.type !== 'numbered') {
+        flushList();
+        currentList = { type: 'numbered', items: [], key: `ol-${index}` };
+      }
+      currentList.items.push({ num: numMatch[1], text: numMatch[2], key: `li-${index}` });
+      return;
+    }
+
+    // Regular paragraph
+    flushList();
+    blocks.push({ type: 'p', text: trimmed, key: `p-${index}` });
+  });
+
+  flushList();
+
+  return (
+    <div className="space-y-3 leading-relaxed">
+      {blocks.map(block => {
+        if (block.type === 'bullet') {
+          return (
+            <ul key={block.key} className="space-y-2 pl-1 my-2">
+              {block.items.map(item => (
+                <li key={item.key} className="flex items-start gap-2.5">
+                  <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--color-mint)]" aria-hidden="true" />
+                  <span className="flex-1">{parseInlineFormatting(item.text)}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        if (block.type === 'numbered') {
+          return (
+            <ol key={block.key} className="space-y-2 pl-1 my-2">
+              {block.items.map(item => (
+                <li key={item.key} className="flex items-start gap-2.5">
+                  <span className="mono text-xs text-[var(--color-mint)] pt-0.5">{item.num}.</span>
+                  <span className="flex-1">{parseInlineFormatting(item.text)}</span>
+                </li>
+              ))}
+            </ol>
+          );
+        }
+        return (
+          <p key={block.key} className="text-body my-1">
+            {parseInlineFormatting(block.text)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+const cleanSourceSnippet = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/^Contract:\s*[^\n\r]*(\r?\n)?/gi, '')
+    .replace(/^Contract parties:\s*[^\n\r]*(\r?\n)?/gi, '')
+    .replace(/^Section\s+[^:\n\r]+:\s*/gi, '')
+    .replace(/\*\*/g, '')
+    .replace(/^\s*[\*\-•]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 export default function QueryInterface() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [messages, setMessages] = useState([]);
@@ -223,7 +354,11 @@ export default function QueryInterface() {
                           <FileText size={12} aria-hidden="true" /> {msg.contract}
                         </div>
                       )}
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                      {msg.role === 'assistant' ? (
+                        <FormattedContent content={msg.content} />
+                      ) : (
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      )}
 
                       {msg.role === 'assistant' && (
                         <div className="mt-5 space-y-4 border-t border-[var(--line)] pt-4">
@@ -231,13 +366,16 @@ export default function QueryInterface() {
                             <div>
                               <p className="eyebrow mb-3 mt-0">Sources cited</p>
                               <div className="grid gap-2">
-                                {msg.sources.map((src, i) => (
-                                  <div key={i} className="source">
-                                    <span className="source__num">{src.clause_number || 'N/A'}</span>
-                                    <span>{(src.clause_text || '').substring(0, 220)}{(src.clause_text || '').length > 220 ? '…' : ''}</span>
-                                    {src.contract_title && <span className="source__title">{cleanTitle(src.contract_title)}</span>}
-                                  </div>
-                                ))}
+                                {msg.sources.map((src, i) => {
+                                  const text = cleanSourceSnippet(src.clause_text);
+                                  return (
+                                    <div key={i} className="source">
+                                      <span className="source__num">{src.clause_number || 'N/A'}</span>
+                                      <span>{text.substring(0, 220)}{text.length > 220 ? '…' : ''}</span>
+                                      {src.contract_title && <span className="source__title">{cleanTitle(src.contract_title)}</span>}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}

@@ -71,6 +71,7 @@ CRITICAL INSTRUCTIONS:
 5. Do not assume a liability cap, notice period, penalty, jurisdiction, or permission that is absent from the evidence.
 6. Answer only the requested issue, briefly. Avoid adding unrequested legal provisions.
 7. If asked to highlight, extract, or quote contract language, return the relevant verbatim excerpts rather than paraphrasing them. Do not repeat introductory phrases or the user's question.
+8. Format answers cleanly and professionally. If presenting multiple terms or conditions, use clean bullet points with a hyphen ('- '). Do NOT surround headings or terms with markdown double asterisks (**) or unnecessary formatting symbols (e.g., write '- Term: ...' instead of '- **Term:** ...').
 
 User Question: {question}
 Retrieved Facts: {context}

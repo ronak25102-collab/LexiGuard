@@ -40,24 +40,67 @@ def _extract_with_openai(text_chunk: str, prompt: str, model_class: Type[T] = Ex
     from openai import OpenAI
 
     settings = get_settings()
-    gateway = settings.llm_provider == LLMProvider.CODECRAFT
-    client = OpenAI(api_key=settings.active_api_key,
-                    base_url=settings.codecraft_base_url if gateway else None)
-    # This gateway accepts JSON mode but rejects Instructor's forced tool choice.
-    patched_client = instructor.from_openai(
-        client, mode=instructor.Mode.JSON if gateway else instructor.Mode.TOOLS
-    )
+    gateway = settings.llm_provider in {LLMProvider.CODECRAFT, LLMProvider.NARAROUTER}
+    if gateway:
+        if settings.llm_provider == LLMProvider.NARAROUTER:
+            from lexiguard.providers.nararouter import get_nararouter_pool
+            pool = get_nararouter_pool(settings)
+            base_url = settings.nararouter_base_url
+            timeout = settings.nararouter_timeout
+            max_tokens = settings.nararouter_max_tokens
+        else:
+            from lexiguard.providers.codecraft import get_codecraft_pool
+            pool = get_codecraft_pool(settings)
+            base_url = settings.codecraft_base_url
+            timeout = settings.codecraft_timeout
+            max_tokens = settings.codecraft_max_tokens
 
-    response = patched_client.chat.completions.create(
-        response_model=model_class,
-        model=settings.active_model,
-        temperature=0.0,
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": text_chunk}
-        ]
-    )
-    return response
+        def extract(key, model):
+            client = OpenAI(api_key=key, base_url=base_url,
+                            timeout=timeout, max_retries=0)
+            patched = instructor.from_openai(client, mode=instructor.Mode.JSON)
+            return patched.chat.completions.create(
+                response_model=model_class, model=model, temperature=0,
+                max_tokens=max_tokens, max_retries=1,
+                messages=[{"role": "system", "content": prompt},
+                          {"role": "user", "content": text_chunk}],
+            )
+
+        return pool.call(extract)
+    try:
+        client = OpenAI(api_key=settings.active_api_key)
+        patched_client = instructor.from_openai(client, mode=instructor.Mode.JSON)
+
+        is_reasoning = any(m in settings.active_model.lower() for m in ("o1", "o3", "luna", "gpt-5", "gpt-6"))
+        create_kwargs = {
+            "response_model": model_class,
+            "model": settings.active_model,
+            "messages": [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": text_chunk}
+            ]
+        }
+        if not is_reasoning:
+            create_kwargs["temperature"] = 0.0
+
+        response = patched_client.chat.completions.create(**create_kwargs)
+        return response
+    except Exception as e:
+        if settings.nararouter_api_key:
+            logger.warning(f"OpenAI extraction failed ({e}), falling back to NaraRouter ({settings.nararouter_model})...")
+            from lexiguard.providers.nararouter import get_nararouter_pool
+            def fb_extract(key, model):
+                fb_client = OpenAI(api_key=key, base_url=settings.nararouter_base_url,
+                                   timeout=settings.nararouter_timeout, max_retries=0)
+                patched = instructor.from_openai(fb_client, mode=instructor.Mode.JSON)
+                return patched.chat.completions.create(
+                    response_model=model_class, model=model, temperature=0,
+                    max_tokens=settings.nararouter_max_tokens, max_retries=1,
+                    messages=[{"role": "system", "content": prompt},
+                              {"role": "user", "content": text_chunk}],
+                )
+            return get_nararouter_pool(settings).call(fb_extract)
+        raise
 
 
 def _extract_with_nvidia(text_chunk: str, prompt: str, model_class: Type[T] = ExtractionData) -> T:
@@ -120,7 +163,7 @@ def _extract_chunk(text_chunk: str, prompt: str, model_class: Type[T] = Extracti
     """Extract structured data from a chunk of text using the configured LLM."""
     settings = get_settings()
     try:
-        if settings.llm_provider in {LLMProvider.OPENAI, LLMProvider.CODECRAFT}:
+        if settings.llm_provider in {LLMProvider.OPENAI, LLMProvider.CODECRAFT, LLMProvider.NARAROUTER}:
             return _extract_with_openai(text_chunk, prompt, model_class)
         if settings.llm_provider == LLMProvider.GOOGLE:
             return _extract_with_google(text_chunk, prompt, model_class)

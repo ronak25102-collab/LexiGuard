@@ -68,6 +68,14 @@ NEO4J_URI=neo4j+s://your-instance.databases.neo4j.io
 NEO4J_USERNAME=your-instance-username
 ```
 
+For CodeCraft failover, set `CODECRAFT_API_KEYS` to a JSON array of keys in `.env`.
+This takes priority over `CODECRAFT_API_KEY`. Set `CODECRAFT_FALLBACK_MODELS` to
+a JSON array of alternative model IDs. Chat and structured extraction share the
+pool: failed keys enter a cooldown and successful routes are reused. Request
+validation errors are returned directly. `CODECRAFT_TIMEOUT` bounds each request;
+SDK retries are disabled to avoid repeatedly waiting on a failed key. These
+application settings do not change the saved evaluation's pinned model or scores.
+
 Start the API from the repository root and the UI from `frontend/`:
 
 ```bash
@@ -78,6 +86,9 @@ npm run dev
 ```
 
 The UI development server uses port 3000 and proxies `/api` to the backend.
+The home page opens with a brief animated brand introduction, then reveals the
+normal dashboard. It runs on a fresh home-page load, supports Skip and Escape,
+and is omitted for reduced-motion preferences and direct links to workspace pages.
 For deployment, set VITE_API_URL and configure the backend environment separately.
 The Dockerfile and render.yaml describe Render deployment; changing this
 checkout's `.env` does not update a hosted service.

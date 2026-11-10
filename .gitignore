@@ -31,6 +31,8 @@ data/chroma_db/
 # OS
 .DS_Store
 Thumbs.db
+\!DOCTYPE html.txt
+*.txt
 
 # Testing
 .coverage

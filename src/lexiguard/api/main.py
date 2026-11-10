@@ -112,6 +112,8 @@ def _provider_display_name() -> str:
         return "Google Gemini"
     if provider == LLMProvider.CODECRAFT:
         return "CodeCraft"
+    if provider == LLMProvider.NARAROUTER:
+        return "NaraRouter"
     return "OpenAI"
 
 
@@ -196,6 +198,8 @@ def process_query(request: QueryRequest):
                 
                 clause_num = str(doc_text.get("clause_number") or doc_text.get("section")
                                  or (doc_text.get(num_key) if num_key else None) or "N/A")
+                if clause_num == "None":
+                    clause_num = "N/A"
                 clause_text = str(doc_text.get("clause_text") or doc_text.get("text")
                                   or doc_text.get("content") or (doc_text.get(text_key)
                                   if text_key else None) or str(doc_text))
@@ -206,9 +210,26 @@ def process_query(request: QueryRequest):
                     contract_title=doc_text.get("contract_title", doc_text.get("title")),
                 ))
             else:
+                raw_text = str(doc_text)
+                title = None
+                clause_num = "N/A"
+                cleaned_lines = []
+                for line in raw_text.splitlines():
+                    if line.startswith("Contract: "):
+                        title = line.replace("Contract: ", "").strip()
+                    elif line.startswith("Contract parties: "):
+                        continue
+                    elif line.startswith("Section "):
+                        sec_part = line.replace("Section ", "").split(":", 1)[0].strip()
+                        if sec_part and sec_part.lower() != "unnumbered":
+                            clause_num = sec_part
+                    else:
+                        cleaned_lines.append(line)
+                cleaned_text = "\n".join(cleaned_lines).strip() or raw_text
                 sources.append(SourceDocument(
-                    clause_number="N/A",
-                    clause_text=str(doc_text),
+                    clause_number=clause_num,
+                    clause_text=cleaned_text,
+                    contract_title=title,
                 ))
 
         return QueryResponse(
@@ -220,10 +241,13 @@ def process_query(request: QueryRequest):
         )
     except Exception as e:
         logger.exception(f"Error processing query: {repr(e)}")
+        error_msg = str(e)
+        if "insufficient credits" in error_msg.lower() or "top up" in error_msg.lower():
+            raise HTTPException(status_code=402, detail=error_msg)
         if _is_rate_limited(e) or any(code in str(e) for code in ("500", "502", "503")):
             raise HTTPException(status_code=503, detail=
                                 f"{_provider_display_name()} is temporarily unavailable. Please retry.")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 @app.get("/evaluation/results")

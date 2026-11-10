@@ -27,16 +27,28 @@ def get_llm():
     if settings.llm_provider == LLMProvider.OPENAI:
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
-            temperature=0,
-            model=settings.openai_model,
-            api_key=settings.openai_api_key,
-        )
+        is_reasoning = any(m in settings.openai_model.lower() for m in ("o1", "o3", "luna", "gpt-5", "gpt-6"))
+        llm_kwargs = {
+            "model": settings.openai_model,
+            "api_key": settings.openai_api_key,
+            "timeout": 30,
+            "max_retries": 1,
+        }
+        if not is_reasoning:
+            llm_kwargs["temperature"] = 0
+
+        primary_llm = ChatOpenAI(**llm_kwargs)
+        if settings.nararouter_api_key:
+            from lexiguard.providers.nararouter import get_nararouter_llm
+            fallback_llm = get_nararouter_llm(settings)
+            return primary_llm.with_fallbacks([fallback_llm])
+        return primary_llm
     elif settings.llm_provider == LLMProvider.CODECRAFT:
-        from langchain_openai import ChatOpenAI
-        return ChatOpenAI(model=settings.codecraft_model, api_key=settings.codecraft_api_key,
-                          base_url=settings.codecraft_base_url, temperature=0,
-                          max_tokens=8192, timeout=90, max_retries=2)
+        from lexiguard.providers.codecraft import get_codecraft_llm
+        return get_codecraft_llm(settings)
+    elif settings.llm_provider == LLMProvider.NARAROUTER:
+        from lexiguard.providers.nararouter import get_nararouter_llm
+        return get_nararouter_llm(settings)
     elif settings.llm_provider == LLMProvider.GOOGLE:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
